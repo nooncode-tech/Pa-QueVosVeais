@@ -28,7 +28,7 @@ import {
 import { useReactToPrint } from 'react-to-print'
 
 export function DailyClosing() {
-  const { orders, tableSessions, refunds } = useApp()
+  const { orders, tableSessions, refunds, getPaymentsForDate } = useApp()
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     return today.toISOString().split('T')[0]
@@ -50,6 +50,12 @@ export function DailyClosing() {
     })
   }, [refunds, selectedDate])
   
+  // Get payments for the selected date (these persist after session closes)
+  const dayPayments = useMemo(() => {
+    return getPaymentsForDate(new Date(selectedDate))
+  }, [getPaymentsForDate, selectedDate])
+  
+  // Also keep daySessions for backward compatibility with any active sessions
   const daySessions = useMemo(() => {
     return tableSessions.filter(session => {
       const sessionDate = new Date(session.createdAt).toISOString().split('T')[0]
@@ -70,13 +76,18 @@ export function DailyClosing() {
       return acc
     }, {} as Record<string, number>)
     
-    // Sales by payment method
-    const salesByPayment = daySessions.reduce((acc, session) => {
-      if (session.paymentMethod) {
-        acc[session.paymentMethod] = (acc[session.paymentMethod] || 0) + session.total
-      }
+    // Sales by payment method - use payments array (persisted) + any active paid sessions
+    const salesByPayment = dayPayments.reduce((acc, payment) => {
+      acc[payment.metodo] = (acc[payment.metodo] || 0) + payment.total
       return acc
     }, {} as Record<string, number>)
+    
+    // Also add any active sessions that are paid (for current day live data)
+    daySessions.forEach(session => {
+      if (session.paymentMethod) {
+        salesByPayment[session.paymentMethod] = (salesByPayment[session.paymentMethod] || 0) + session.total
+      }
+    })
     
     // Top selling items
     const itemSales: Record<string, { name: string; quantity: number; revenue: number }> = {}
@@ -95,11 +106,21 @@ export function DailyClosing() {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10)
     
-    // Calculate totals
+    // Calculate totals - combine payments and active paid sessions
     const grossSales = completedOrders.reduce((sum, o) => sum + calculateOrderTotal(o.items), 0)
-    const totalTax = daySessions.reduce((sum, s) => sum + s.impuestos, 0)
-    const totalTips = daySessions.reduce((sum, s) => sum + s.propina, 0)
-    const totalDiscounts = daySessions.reduce((sum, s) => sum + s.descuento, 0)
+    
+    // Taxes and tips from persisted payments
+    const paymentsTax = dayPayments.reduce((sum, p) => sum + p.impuestos, 0)
+    const paymentsTips = dayPayments.reduce((sum, p) => sum + p.propina, 0)
+    
+    // Also from active sessions (live data)
+    const sessionsTax = daySessions.reduce((sum, s) => sum + s.impuestos, 0)
+    const sessionsTips = daySessions.reduce((sum, s) => sum + s.propina, 0)
+    const sessionsDiscounts = daySessions.reduce((sum, s) => sum + s.descuento, 0)
+    
+    const totalTax = paymentsTax + sessionsTax
+    const totalTips = paymentsTips + sessionsTips
+    const totalDiscounts = sessionsDiscounts // Note: discounts are factored into session.total before payment
     const totalRefunds = dayRefunds.reduce((sum, r) => sum + r.monto, 0)
     const netSales = grossSales - totalDiscounts - totalRefunds
     
@@ -134,7 +155,7 @@ export function DailyClosing() {
       salesByPayment,
       topItems,
     }
-  }, [dayOrders, daySessions, dayRefunds])
+  }, [dayOrders, daySessions, dayRefunds, dayPayments])
   
   const handlePrint = useCallback(() => {
     const printWindow = window.open('', '_blank', 'width=800,height=600')

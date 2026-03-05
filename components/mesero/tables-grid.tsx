@@ -1,28 +1,26 @@
 'use client'
 
-import { Users, Bell, Receipt } from 'lucide-react'
+import { Users, Bell, Receipt, Clock, ChefHat } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+import { getTimeDiff } from '@/lib/store'
 
 interface TablesGridProps {
   onSelectTable: (mesa: number) => void
 }
 
 export function TablesGrid({ onSelectTable }: TablesGridProps) {
-  const { orders, tableSessions, getPendingCalls, getActiveTables } = useApp()
+  const { tableSessions, getPendingCalls, getActiveTables } = useApp()
   
   const pendingCalls = getPendingCalls()
   
   const getTableStatus = (mesa: number) => {
-    const session = tableSessions.find(
-  s => s.mesa === mesa && s.activa
-)
-
-const tableOrders = session?.orders?.filter(
-  o => o.status !== 'entregado' && o.status !== 'cancelado'
-) || []
-
+    const session = tableSessions.find(s => s.mesa === mesa && s.activa)
+    const tableOrders = session?.orders?.filter(
+      o => o.status !== 'entregado' && o.status !== 'cancelado'
+    ) || []
     const tableCalls = pendingCalls.filter(c => c.mesa === mesa)
     
     // Check for payment requested
@@ -35,31 +33,30 @@ const tableOrders = session?.orders?.filter(
     
     if (!session && tableOrders.length === 0) {
       return { 
-        status: 'libre', 
+        status: 'libre' as const, 
         label: 'Libre', 
-        color: 'bg-secondary',
+        bgColor: 'bg-secondary',
+        textColor: 'text-muted-foreground',
+        borderColor: 'border-transparent',
         hasCall: false,
-        hasBillRequest: false
+        hasBillRequest: false,
+        orderCount: 0,
+        session: null
       }
     }
 
     // Session is paid - show special status
     if (session?.billStatus === 'pagada') {
-      if (tableOrders.length === 0) {
-        return { 
-          status: 'pagada', 
-          label: 'Pagada', 
-          color: 'bg-emerald-500',
-          hasCall: hasAttentionCall,
-          hasBillRequest: false
-        }
-      }
       return { 
-        status: 'pagada', 
-        label: 'Pagada (entregas)',
-        color: 'bg-emerald-500',
+        status: 'pagada' as const, 
+        label: tableOrders.length > 0 ? 'Pagada (entregas)' : 'Pagada',
+        bgColor: 'bg-emerald-500',
+        textColor: 'text-emerald-600',
+        borderColor: 'border-emerald-500',
         hasCall: hasAttentionCall,
-        hasBillRequest: false
+        hasBillRequest: false,
+        orderCount: tableOrders.length,
+        session
       }
     }
     
@@ -68,116 +65,209 @@ const tableOrders = session?.orders?.filter(
     
     if (hasReady) {
       return { 
-        status: 'listo', 
-        label: 'Listo', 
-        color: 'bg-success',
+        status: 'listo' as const, 
+        label: 'Listo para entregar', 
+        bgColor: 'bg-success',
+        textColor: 'text-success',
+        borderColor: 'border-success',
         hasCall: hasAttentionCall,
-        hasBillRequest: paymentRequested
+        hasBillRequest: paymentRequested,
+        orderCount: tableOrders.length,
+        session
       }
     }
     if (hasPreparing) {
       return { 
-        status: 'preparando', 
-        label: 'Preparando', 
-        color: 'bg-primary',
+        status: 'preparando' as const, 
+        label: 'En cocina', 
+        bgColor: 'bg-primary',
+        textColor: 'text-primary',
+        borderColor: 'border-primary',
         hasCall: hasAttentionCall,
-        hasBillRequest: paymentRequested
+        hasBillRequest: paymentRequested,
+        orderCount: tableOrders.length,
+        session
       }
     }
     
     return { 
-      status: 'ocupada', 
+      status: 'ocupada' as const, 
       label: 'Ocupada', 
-      color: 'bg-muted-foreground',
+      bgColor: 'bg-muted-foreground',
+      textColor: 'text-muted-foreground',
+      borderColor: 'border-muted-foreground/30',
       hasCall: hasAttentionCall,
-      hasBillRequest: paymentRequested
+      hasBillRequest: paymentRequested,
+      orderCount: tableOrders.length,
+      session
     }
   }
   
   const activeTables = getActiveTables()
-  const tables = activeTables.map(t => t.numero)
+  
+  // Group tables by status for quick stats using unique table IDs
+  const tableStatuses = activeTables.map(t => ({ tableId: t.id, mesa: t.numero, ...getTableStatus(t.numero) }))
+  const freeCount = tableStatuses.filter(t => t.status === 'libre').length
+  const readyCount = tableStatuses.filter(t => t.status === 'listo').length
+  const preparingCount = tableStatuses.filter(t => t.status === 'preparando').length
+  const occupiedCount = tableStatuses.filter(t => t.status === 'ocupada' || t.status === 'pagada').length
   
   return (
-    <div className="p-3">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-semibold text-foreground">Vista de mesas</h2>
-        <div className="flex items-center gap-2 text-[10px]">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-secondary border border-border" />
-            <span className="text-muted-foreground">Libre</span>
+    <div className="p-3 md:p-4 lg:p-6 bg-card">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4 md:mb-6">
+        <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-secondary/50">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+            <Users className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-            <span className="text-muted-foreground">Ocupada</span>
+          <div className="min-w-0">
+            <p className="text-lg md:text-2xl font-bold text-foreground">{freeCount}</p>
+            <p className="text-[10px] md:text-xs text-muted-foreground truncate">Libres</p>
           </div>
-          <div className="flex items-center gap-1 hidden sm:flex">
-            <div className="w-2 h-2 rounded-full bg-primary" />
-            <span className="text-muted-foreground">Preparando</span>
+        </div>
+        <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-success/10">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-success/20 flex items-center justify-center shrink-0">
+            <Receipt className="h-4 w-4 md:h-5 md:w-5 text-success" />
           </div>
-          <div className="flex items-center gap-1 hidden sm:flex">
-            <div className="w-2 h-2 rounded-full bg-success" />
-            <span className="text-muted-foreground">Listo</span>
+          <div className="min-w-0">
+            <p className="text-lg md:text-2xl font-bold text-success">{readyCount}</p>
+            <p className="text-[10px] md:text-xs text-success truncate">Listos</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-primary/10">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+            <ChefHat className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg md:text-2xl font-bold text-primary">{preparingCount}</p>
+            <p className="text-[10px] md:text-xs text-primary truncate">En cocina</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-muted/50">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+            <Clock className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg md:text-2xl font-bold text-foreground">{occupiedCount}</p>
+            <p className="text-[10px] md:text-xs text-muted-foreground truncate">Ocupadas</p>
           </div>
         </div>
       </div>
       
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-        {tables.map((mesa) => {
-          const { status, label, color, hasCall, hasBillRequest } = getTableStatus(mesa)
-          const session = tableSessions.find(
-  s => s.mesa === mesa && s.activa
-)
-
-const tableOrders = session?.orders.filter(
-  o => o.status !== 'entregado' && o.status !== 'cancelado'
-) || []
-
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-4 text-[10px] md:text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-secondary border border-border" />
+          <span className="text-muted-foreground">Libre</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-muted-foreground" />
+          <span className="text-muted-foreground">Ocupada</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-primary" />
+          <span className="text-muted-foreground">En cocina</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-success" />
+          <span className="text-muted-foreground">Listo</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-emerald-500" />
+          <span className="text-muted-foreground">Pagada</span>
+        </div>
+      </div>
+      
+      {/* Tables Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-3">
+        {tableStatuses.map(({ tableId, mesa, status, label, bgColor, textColor, borderColor, hasCall, hasBillRequest, orderCount, session }) => {
+          const isHighPriority = hasCall || hasBillRequest || status === 'listo'
           
           return (
             <Card
-              key={mesa}
-              className={`cursor-pointer transition-all hover:shadow-md border relative ${
-                hasCall || hasBillRequest ? 'ring-2 ring-amber-500 animate-pulse' :
-                status === 'listo' ? 'border-success' : 
-                status === 'preparando' ? 'border-primary' :
-                'border-transparent hover:border-primary/30'
-              }`}
+              key={tableId}
+              className={cn(
+                "cursor-pointer transition-all hover:shadow-lg border-2 relative group",
+                isHighPriority && "ring-2 ring-offset-2",
+                hasCall && "ring-destructive",
+                hasBillRequest && !hasCall && "ring-amber-500",
+                status === 'listo' && !hasCall && !hasBillRequest && "ring-success",
+                !isHighPriority && "hover:border-primary/30",
+                borderColor
+              )}
               onClick={() => onSelectTable(mesa)}
             >
               {/* Notification badges */}
               {(hasCall || hasBillRequest) && (
-                <div className="absolute -top-1.5 -right-1.5 flex gap-0.5">
+                <div className="absolute -top-2 -right-2 flex gap-1 z-10">
                   {hasCall && (
-                    <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                      <Bell className="h-2.5 w-2.5 text-white" />
+                    <div className="w-6 h-6 bg-destructive rounded-full flex items-center justify-center shadow-md animate-pulse">
+                      <Bell className="h-3 w-3 text-white" />
                     </div>
                   )}
                   {hasBillRequest && (
-                    <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
-                      <Receipt className="h-2.5 w-2.5 text-white" />
+                    <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shadow-md animate-pulse">
+                      <Receipt className="h-3 w-3 text-white" />
                     </div>
                   )}
                 </div>
               )}
               
-              <CardContent className="p-2 text-center">
-                <div className={`w-8 h-8 mx-auto rounded-md ${color} flex items-center justify-center mb-1 ${
-                  status === 'libre' ? 'text-muted-foreground' : 'text-primary-foreground'
-                }`}>
-                  <Users className="h-3.5 w-3.5" />
+              <CardContent className="p-4">
+                {/* Table Icon */}
+                <div className={cn(
+                  "w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105",
+                  bgColor,
+                  status === 'libre' ? 'text-muted-foreground' : 'text-white'
+                )}>
+                  <Users className="h-6 w-6" />
                 </div>
-                <h3 className="font-semibold text-[11px] text-foreground">Mesa {mesa}</h3>
-                <p className={`text-[9px] leading-tight ${
-                  status === 'listo' ? 'text-success font-medium' :
-                  status === 'preparando' ? 'text-primary font-medium' :
-                  'text-muted-foreground'
-                }`}>
+                
+                {/* Table Number */}
+                <h3 className="font-bold text-lg text-foreground text-center">
+                  Mesa {mesa}
+                </h3>
+                
+                {/* Status Label */}
+                <p className={cn(
+                  "text-xs text-center font-medium mt-1",
+                  textColor
+                )}>
                   {label}
                 </p>
-                {tableOrders.length > 0 && (
-                  <p className="text-[9px] text-muted-foreground">
-                    {tableOrders.length} pedido{tableOrders.length > 1 ? 's' : ''}
-                  </p>
+                
+                {/* Order Count & Time */}
+                {orderCount > 0 && (
+                  <div className="mt-2 pt-2 border-t border-border">
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <span>{orderCount} pedido{orderCount !== 1 ? 's' : ''}</span>
+                      {session?.createdAt && (
+                        <>
+                          <span>·</span>
+                          <span className="flex items-center gap-0.5">
+                            <Clock className="h-3 w-3" />
+                            {getTimeDiff(session.createdAt)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Quick Status Badges */}
+                {status !== 'libre' && session && (
+                  <div className="mt-2 flex justify-center">
+                    {status === 'listo' && (
+                      <Badge className="bg-success/20 text-success border-0 text-[10px]">
+                        Entregar
+                      </Badge>
+                    )}
+                    {status === 'pagada' && (
+                      <Badge className="bg-emerald-100 text-emerald-700 border-0 text-[10px]">
+                        Cerrar mesa
+                      </Badge>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>

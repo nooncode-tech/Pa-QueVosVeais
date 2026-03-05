@@ -182,7 +182,17 @@ export function MenuView({
                     <div className={`w-16 h-16 bg-secondary rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center relative ${
                       !isAvailable ? 'grayscale' : ''
                     }`}>
-                      <span className="text-2xl">{getCategoryEmoji(item.categoria)}</span>
+                      {item.imagen ? (
+                        <Image 
+                          src={item.imagen} 
+                          alt={item.nombre}
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-2xl">{getCategoryEmoji(item.categoria)}</span>
+                      )}
                       {!isAvailable && (
                         <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
                           <span className="text-[9px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">

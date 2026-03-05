@@ -179,6 +179,7 @@ interface AppContextType extends AppState {
   getPendingDeliveries: () => Order[]
   getTableOrders: (mesa: number) => Order[]
   getAllActiveOrders: () => Order[]
+  getPaymentsForDate: (date: Date) => TableSession[]
   canEditOrder: (orderId: string) => boolean
   canCancelOrder: (orderId: string) => boolean
 }
@@ -323,7 +324,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isHydrated) {
       isWritingRef.current = true
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+      const stateToSave = {
+  ...state,
+  menuItems: state.menuItems.map(item => ({
+    ...item,
+    imagen: undefined
+  }))
+}
+
+localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
       // Reset flag after a tick to allow storage event from other tabs
       setTimeout(() => {
         isWritingRef.current = false
@@ -1525,6 +1534,17 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     return state.orders.filter(o => o.status !== 'entregado')
   }, [state.orders])
   
+  const getPaymentsForDate = useCallback((date: Date) => {
+  const target = date.toISOString().split("T")[0]
+
+  return state.tableSessions.filter(session => {
+    if (!session.paidAt) return false
+
+    const paidDate = new Date(session.paidAt).toISOString().split("T")[0]
+    return paidDate === target
+  })
+}, [state.tableSessions])
+  
   const value: AppContextType = {
     ...state,
     login,
@@ -1582,6 +1602,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     getPendingDeliveries,
     getTableOrders,
     getAllActiveOrders,
+    getPaymentsForDate,
     canEditOrder,
     canCancelOrder,
     generateTableQR,

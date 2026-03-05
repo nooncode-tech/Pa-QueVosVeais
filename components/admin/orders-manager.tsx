@@ -26,31 +26,81 @@ import {
 import { CreateOrderDialog } from './create-order-dialog'
 
 export function OrdersManager() {
-  const { orders, updateOrderStatus } = useApp()
+  const { orders, updateOrderStatus, tableSessions } = useApp()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createChannel, setCreateChannel] = useState<Channel>('para_llevar')
-  const [activeTab, setActiveTab] = useState<'takeout' | 'delivery'>('takeout')
+  const [activeTab, setActiveTab] = useState<'table' | 'takeout' | 'delivery'>('table')
   
+  // Categorize orders
+  const tableOrders = orders.filter(o => o.canal === 'mesa' && o.mesa)
   const deliveryOrders = orders.filter(o => o.canal === 'delivery')
   const takeoutOrders = orders.filter(o => o.canal === 'para_llevar')
-  const activeDelivery = deliveryOrders.filter(o => o.status !== 'entregado')
-  const activeTakeout = takeoutOrders.filter(o => o.status !== 'entregado')
+  
+  const activeTable = tableOrders.filter(o => o.status !== 'entregado' && o.status !== 'cancelado')
+  const activeDelivery = deliveryOrders.filter(o => o.status !== 'entregado' && o.status !== 'cancelado')
+  const activeTakeout = takeoutOrders.filter(o => o.status !== 'entregado' && o.status !== 'cancelado')
   
   const handleCreateOrder = (channel: Channel) => {
     setCreateChannel(channel)
     setShowCreateDialog(true)
   }
 
-  const currentOrders = activeTab === 'takeout' ? takeoutOrders : deliveryOrders
-  const activeCount = activeTab === 'takeout' ? activeTakeout.length : activeDelivery.length
+  // Determine which orders to show based on tab
+  const getCurrentOrders = () => {
+    switch (activeTab) {
+      case 'table': return tableOrders
+      case 'takeout': return takeoutOrders
+      case 'delivery': return deliveryOrders
+      default: return tableOrders
+    }
+  }
+  
+  const getActiveCount = () => {
+    switch (activeTab) {
+      case 'table': return activeTable.length
+      case 'takeout': return activeTakeout.length
+      case 'delivery': return activeDelivery.length
+      default: return 0
+    }
+  }
+
+  const currentOrders = getCurrentOrders()
+  const activeCount = getActiveCount()
+  
+  // Get table info for table orders
+  const getTableInfo = (mesa: number) => {
+    const session = tableSessions.find(s => s.mesa === mesa && s.activa)
+    return session
+  }
   
   return (
     <div className="p-3">
-      {/* Tabs */}
-      <div className="flex gap-1 mb-3">
+      {/* Tabs - Only show tabs if there are orders in multiple channels */}
+      <div className="flex gap-1 mb-3 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('table')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+            activeTab === 'table'
+              ? 'bg-foreground text-background'
+              : 'bg-secondary text-foreground'
+          }`}
+        >
+          <Package className="h-3 w-3" />
+          Mesas
+          {activeTable.length > 0 && (
+            <Badge 
+              variant="secondary" 
+              className={`text-[9px] h-3.5 px-1 ${
+                activeTab === 'table' ? 'bg-background/20 text-background' : 'bg-primary/20 text-primary'
+              }`}
+            >
+              {activeTable.length}
+            </Badge>
+          )}
+        </button>
         <button
           onClick={() => setActiveTab('takeout')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
             activeTab === 'takeout'
               ? 'bg-foreground text-background'
               : 'bg-secondary text-foreground'
@@ -71,7 +121,7 @@ export function OrdersManager() {
         </button>
         <button
           onClick={() => setActiveTab('delivery')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
             activeTab === 'delivery'
               ? 'bg-foreground text-background'
               : 'bg-secondary text-foreground'
@@ -96,26 +146,37 @@ export function OrdersManager() {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-xs font-semibold text-foreground">
-            {activeTab === 'takeout' ? 'Pedidos para llevar' : 'Pedidos delivery'}
+            {activeTab === 'table' ? 'Pedidos de mesas' : 
+             activeTab === 'takeout' ? 'Pedidos para llevar' : 'Pedidos delivery'}
           </h2>
           <p className="text-[10px] text-muted-foreground">
             {activeCount} pedido{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button 
-          className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5"
-          onClick={() => handleCreateOrder(activeTab === 'takeout' ? 'para_llevar' : 'delivery')}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Nuevo
-        </Button>
+        {activeTab !== 'table' && (
+          <Button 
+            className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5"
+            onClick={() => handleCreateOrder(activeTab === 'takeout' ? 'para_llevar' : 'delivery')}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Nuevo
+          </Button>
+        )}
       </div>
       
-      <OrdersList 
-        orders={currentOrders} 
-        channel={activeTab === 'takeout' ? 'para_llevar' : 'delivery'}
-        onUpdateStatus={updateOrderStatus}
-      />
+      {activeTab === 'table' ? (
+        <TableOrdersList 
+          orders={currentOrders}
+          getTableInfo={getTableInfo}
+          onUpdateStatus={updateOrderStatus}
+        />
+      ) : (
+        <OrdersList 
+          orders={currentOrders} 
+          channel={activeTab === 'takeout' ? 'para_llevar' : 'delivery'}
+          onUpdateStatus={updateOrderStatus}
+        />
+      )}
       
       {showCreateDialog && (
         <CreateOrderDialog
@@ -124,6 +185,250 @@ export function OrdersManager() {
         />
       )}
     </div>
+  )
+}
+
+// Table Orders List Component
+interface TableOrdersListProps {
+  orders: ReturnType<typeof useApp>['orders']
+  getTableInfo: (mesa: number) => ReturnType<typeof useApp>['tableSessions'][0] | undefined
+  onUpdateStatus: (orderId: string, status: OrderStatus) => void
+}
+
+function TableOrdersList({ orders, getTableInfo, onUpdateStatus }: TableOrdersListProps) {
+  const activeOrders = orders.filter(o => o.status !== 'entregado' && o.status !== 'cancelado')
+  const completedOrders = orders.filter(o => o.status === 'entregado')
+  
+  if (orders.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="py-8 text-center">
+          <Package className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+          <p className="text-xs text-muted-foreground">No hay pedidos de mesas</p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Los pedidos aparecen cuando los clientes ordenan desde sus mesas
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+  
+  // Group orders by table
+  const ordersByTable = activeOrders.reduce((acc, order) => {
+    const mesa = order.mesa || 0
+    if (!acc[mesa]) acc[mesa] = []
+    acc[mesa].push(order)
+    return acc
+  }, {} as Record<number, typeof activeOrders>)
+  
+  return (
+    <div className="space-y-3">
+      {Object.keys(ordersByTable).length > 0 && (
+        <div className="space-y-2">
+          {Object.entries(ordersByTable)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([mesa, tableOrders]) => {
+              const session = getTableInfo(Number(mesa))
+              return (
+                <Card key={mesa} className="border">
+                  <CardHeader className="p-2 pb-1 bg-secondary/30">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xs flex items-center gap-2">
+                        <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-[10px] font-bold">
+                          Mesa {mesa}
+                        </span>
+                        <span className="text-muted-foreground font-normal">
+                          {tableOrders.length} pedido{tableOrders.length > 1 ? 's' : ''}
+                        </span>
+                      </CardTitle>
+                      {session && (
+                        <span className="text-[9px] text-muted-foreground">
+                          Total sesion: ${session.total.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-2 space-y-1.5">
+                    {tableOrders.map((order) => (
+                      <TableOrderCard 
+                        key={order.id} 
+                        order={order}
+                        onUpdateStatus={onUpdateStatus}
+                      />
+                    ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
+        </div>
+      )}
+      
+      {completedOrders.length > 0 && (
+        <div>
+          <h3 className="font-medium text-[10px] text-muted-foreground mb-1.5">Completados hoy</h3>
+          <div className="grid gap-1.5">
+            {completedOrders.slice(0, 5).map((order) => (
+              <Card key={order.id} className="border opacity-60">
+                <CardContent className="p-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-medium">Mesa {order.mesa}</span>
+                      <span className="text-[9px] text-muted-foreground">#{order.numero}</span>
+                    </div>
+                    <Badge className="text-[9px] h-4 bg-muted text-muted-foreground">
+                      Entregado
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Compact Table Order Card
+interface TableOrderCardProps {
+  order: ReturnType<typeof useApp>['orders'][0]
+  onUpdateStatus: (orderId: string, status: OrderStatus) => void
+}
+
+function TableOrderCard({ order, onUpdateStatus }: TableOrderCardProps) {
+  const { canEditOrder, canCancelOrder } = useApp()
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  
+  const canEdit = canEditOrder(order.id)
+  const canCancel = canCancelOrder(order.id)
+  
+  // Check kitchen status
+  const needsA = order.items.some(i => i.menuItem.cocina === 'cocina_a' || i.menuItem.cocina === 'ambas')
+  const needsB = order.items.some(i => i.menuItem.cocina === 'cocina_b' || i.menuItem.cocina === 'ambas')
+  const aReady = !needsA || order.cocinaAStatus === 'listo'
+  const bReady = !needsB || order.cocinaBStatus === 'listo'
+  const allKitchensReady = aReady && bReady
+  
+  return (
+    <>
+      <div className={`p-2 rounded-md border ${
+        order.status === 'listo' ? 'border-success bg-success/5' : 
+        order.status === 'preparando' ? 'border-primary/50 bg-primary/5' : 
+        'border-border bg-card'
+      }`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-medium text-foreground">Pedido #{order.numero}</span>
+              <span className="text-[9px] text-muted-foreground">
+                {formatTime(order.createdAt)} ({getTimeDiff(order.createdAt)})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1 text-[9px]">
+              {order.items.slice(0, 4).map((item, idx) => (
+                <span key={item.id} className="text-muted-foreground">
+                  {item.cantidad}x {item.menuItem.nombre}{idx < Math.min(order.items.length, 4) - 1 ? ',' : ''}
+                </span>
+              ))}
+              {order.items.length > 4 && (
+                <span className="text-muted-foreground">+{order.items.length - 4} mas</span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            {/* Kitchen Status Badges */}
+            {order.status !== 'listo' && order.status !== 'entregado' && (
+              <div className="flex gap-0.5">
+                {needsA && (
+                  <span className={`text-[8px] px-1 py-0.5 rounded ${
+                    order.cocinaAStatus === 'listo' ? 'bg-success/20 text-success' :
+                    order.cocinaAStatus === 'preparando' ? 'bg-primary/20 text-primary' :
+                    'bg-muted text-muted-foreground'
+                  }`}>
+                    A
+                  </span>
+                )}
+                {needsB && (
+                  <span className={`text-[8px] px-1 py-0.5 rounded ${
+                    order.cocinaBStatus === 'listo' ? 'bg-success/20 text-success' :
+                    order.cocinaBStatus === 'preparando' ? 'bg-primary/20 text-primary' :
+                    'bg-muted text-muted-foreground'
+                  }`}>
+                    B
+                  </span>
+                )}
+              </div>
+            )}
+            
+            <Badge className={`text-[9px] h-4 px-1.5 ${
+              order.status === 'listo' ? 'bg-success text-success-foreground' :
+              order.status === 'preparando' ? 'bg-primary/20 text-primary' :
+              'bg-secondary text-secondary-foreground'
+            }`}>
+              {getStatusLabel(order.status)}
+            </Badge>
+            
+            {(canEdit || canCancel) && order.status !== 'entregado' && order.status !== 'cancelado' && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-5 w-5">
+                    <MoreVertical className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {canEdit && (
+                    <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+                      <Edit3 className="h-3 w-3 mr-2" />
+                      Editar
+                    </DropdownMenuItem>
+                  )}
+                  {canCancel && (
+                    <>
+                      {canEdit && <DropdownMenuSeparator />}
+                      <DropdownMenuItem 
+                        onClick={() => setShowCancelDialog(true)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <X className="h-3 w-3 mr-2" />
+                        Cancelar
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+        
+        {/* Action button for ready orders */}
+        {order.status === 'listo' && allKitchensReady && (
+          <div className="mt-2 pt-2 border-t border-border">
+            <Button
+              size="sm"
+              className="w-full h-6 text-[10px] bg-success hover:bg-success/90 text-success-foreground"
+              onClick={() => onUpdateStatus(order.id, 'entregado')}
+            >
+              <Check className="h-2.5 w-2.5 mr-1" />
+              Marcar entregado
+            </Button>
+          </div>
+        )}
+      </div>
+      
+      <CancelOrderDialog
+        order={order}
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+      />
+      
+      <EditOrderDialog
+        order={order}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+      />
+    </>
   )
 }
 

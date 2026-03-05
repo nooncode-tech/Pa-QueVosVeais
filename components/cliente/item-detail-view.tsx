@@ -44,9 +44,17 @@ export function ItemDetailView({ item, onBack, onAddToCart, cartItemCount = 0, c
       {/* Hero Image with overlaid header */}
       <div className="relative">
         <div className="w-full aspect-[4/3] bg-secondary flex items-center justify-center rounded-b-[32px] overflow-hidden">
-          <span className="text-7xl">
-            {item.categoria === 'Tacos' ? '🌮' : item.categoria === 'Antojitos' ? '🫓' : '🥤'}
-          </span>
+          {item.imagen ? (
+            <img 
+              src={item.imagen} 
+              alt={item.nombre}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-7xl">
+              {item.categoria === 'Tacos' ? '🌮' : item.categoria === 'Antojitos' ? '🫓' : item.categoria === 'Bebidas' ? '🥤' : item.categoria === 'Postres' ? '🍮' : '🍽️'}
+            </span>
+          )}
         </div>
         
         {/* Overlaid header */}

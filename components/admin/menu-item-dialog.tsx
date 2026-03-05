@@ -2,7 +2,7 @@
 
 import React from "react"
 import { useState } from 'react'
-import { X, Plus, Trash2, ImageIcon, Upload, Archive } from 'lucide-react'
+import { X, Plus, Trash2, ImageIcon, Upload, Archive, AlertTriangle } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,8 +17,11 @@ interface MenuItemDialogProps {
 }
 
 export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
-  const { updateMenuItem, addMenuItem, categories, ingredients } = useApp()
+  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients, addCategory } = useApp()
   const [nombre, setNombre] = useState(item?.nombre || '')
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [descripcion, setDescripcion] = useState(item?.descripcion || '')
   const [precio, setPrecio] = useState(item?.precio.toString() || '')
   const [categoria, setCategoria] = useState(item?.categoria || categories[0]?.nombre || '')
@@ -189,18 +192,68 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
           
           <div>
             <Label htmlFor="categoria" className="text-xs">Categoria</Label>
-            <Select value={categoria} onValueChange={setCategoria}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {activeCategories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.nombre} className="text-sm">
-                    {cat.nombre}
+            {showNewCategory ? (
+              <div className="flex gap-1">
+                <Input
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Nueva categoria..."
+                  className="h-8 text-sm flex-1"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 bg-transparent"
+                  onClick={() => {
+                    if (newCategoryName.trim()) {
+                      addCategory(newCategoryName.trim())
+                      setCategoria(newCategoryName.trim())
+                      setNewCategoryName('')
+                      setShowNewCategory(false)
+                    }
+                  }}
+                  disabled={!newCategoryName.trim()}
+                >
+                  Crear
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    setShowNewCategory(false)
+                    setNewCategoryName('')
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <Select value={categoria} onValueChange={(v) => {
+                if (v === '__new__') {
+                  setShowNewCategory(true)
+                } else {
+                  setCategoria(v)
+                }
+              }}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.nombre} className="text-sm">
+                      {cat.nombre}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__new__" className="text-sm text-primary font-medium">
+                    + Crear nueva categoria
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            )}
           </div>
           
           <div>
@@ -229,32 +282,53 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
               <div className="space-y-2 mb-2">
                 {extras.map((extra) => (
                   <div key={extra.id} className="bg-secondary/50 px-2 py-1.5 rounded-md">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-foreground font-medium">{extra.nombre}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          +${extra.precio.toFixed(2)}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditingExtraId(editingExtraId === extra.id ? null : extra.id)}
-                          className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                          title="Configurar ingredientes"
-                        >
-                          <Archive className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveExtra(extra.id)}
-                          className="h-5 w-5 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        value={extra.nombre}
+                        onChange={(e) => {
+                          setExtras(extras.map(ex =>
+                            ex.id === extra.id ? { ...ex, nombre: e.target.value } : ex
+                          ))
+                        }}
+                        className="h-6 text-xs flex-1"
+                        placeholder="Nombre"
+                      />
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground">$</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={extra.precio}
+                          onChange={(e) => {
+                            setExtras(extras.map(ex =>
+                              ex.id === extra.id ? { ...ex, precio: parseFloat(e.target.value) || 0 } : ex
+                            ))
+                          }}
+                          className="h-6 text-xs w-16"
+                          placeholder="0.00"
+                        />
                       </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingExtraId(editingExtraId === extra.id ? null : extra.id)}
+                        className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                        title="Configurar ingredientes"
+                      >
+                        <Archive className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveExtra(extra.id)}
+                        className="h-5 w-5 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                     
                     {/* Extra ingredient recipe config */}
@@ -478,6 +552,55 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
             )}
           </div>
           
+          {/* Delete Section - Only for existing items */}
+          {item && (
+            <div className="pt-3 border-t border-destructive/20">
+              {!showDeleteConfirm ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-8 text-xs border-destructive/50 text-destructive hover:bg-destructive/10 bg-transparent"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="h-3 w-3 mr-1.5" />
+                  Eliminar platillo
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="p-2 bg-destructive/10 rounded-md border border-destructive/30">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                      <p className="text-xs font-medium text-destructive">Confirmar eliminacion</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Esta accion no se puede deshacer. El platillo "{item.nombre}" sera eliminado permanentemente.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 h-8 text-xs bg-transparent"
+                      onClick={() => setShowDeleteConfirm(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      className="flex-1 h-8 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                      onClick={() => {
+                        deleteMenuItem(item.id)
+                        onClose()
+                      }}
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="pt-2 flex gap-2">
             <Button
               type="button"

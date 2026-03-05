@@ -31,6 +31,12 @@ export function BillDialog({ sessionId, onClose }: BillDialogProps) {
   
   const [descuento, setDescuento] = useState(session?.descuento?.toString() || '0')
   const [motivoDescuento, setMotivoDescuento] = useState('')
+  const promoDelDia = config?.promoDelDia ?? 15
+
+const quickDiscounts = [
+  { label: "Seguirnos", percent: 10 },
+  { label: "Cliente frecuente", percent: 5 },
+]
   const [propina, setPropina] = useState(session?.propina?.toString() || '0')
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -156,43 +162,66 @@ export function BillDialog({ sessionId, onClose }: BillDialogProps) {
           
           {/* Discount */}
           <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <Percent className="h-4 w-4" />
-              Descuento
-            </h3>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-1">
-                <Label className="text-xs text-muted-foreground">Monto</Label>
-                <Input
-                  type="number"
-                  value={descuento}
-                  onChange={(e) => setDescuento(e.target.value)}
-                  placeholder="0"
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs text-muted-foreground">Motivo</Label>
-                <div className="flex gap-1">
-                  <Input
-                    value={motivoDescuento}
-                    onChange={(e) => setMotivoDescuento(e.target.value)}
-                    placeholder="Motivo del descuento"
-                    className="h-9 text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 shrink-0 bg-transparent"
-                    onClick={handleApplyDiscount}
-                    disabled={!motivoDescuento.trim() || Number.parseFloat(descuento) <= 0}
-                  >
-                    Aplicar
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+  <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+    <Percent className="h-4 w-4" />
+    Descuento
+  </h3>
+
+  {/* Botones de descuento estilo propina */}
+  <div className="flex gap-2 mb-2">
+    {quickDiscounts.map((d) => {
+      const value = Math.round(session.subtotal * (d.percent / 100))
+
+      return (
+        <Button
+          key={d.label}
+          variant={Number.parseFloat(descuento) === value ? 'default' : 'outline'}
+          size="sm"
+          className="flex-1 h-9 text-xs"
+          onClick={() => {
+            setDescuento(value.toString())
+            setMotivoDescuento(d.label)
+          }}
+        >
+          {d.label} ({d.percent}%)
+        </Button>
+      )
+    })}
+  </div>
+
+  {/* Descuento manual */}
+  <div className="grid grid-cols-3 gap-2">
+    <div>
+      <Label className="text-xs text-muted-foreground">Monto</Label>
+      <Input
+        type="number"
+        value={descuento}
+        onChange={(e) => setDescuento(e.target.value)}
+        placeholder="0"
+        className="h-9 text-sm"
+      />
+    </div>
+
+    <div className="col-span-2 flex gap-1 items-end">
+      <Input
+        value={motivoDescuento}
+        onChange={(e) => setMotivoDescuento(e.target.value)}
+        placeholder="Motivo del descuento"
+        className="h-9 text-sm"
+      />
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-9 shrink-0"
+        onClick={handleApplyDiscount}
+        disabled={!motivoDescuento.trim() || Number.parseFloat(descuento) <= 0}
+      >
+        Aplicar
+      </Button>
+    </div>
+  </div>
+</div>
           
           {/* Tip */}
           <div>

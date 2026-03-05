@@ -1,13 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, Percent, Clock, CreditCard, Bell, MapPin, Save, Check, AlertTriangle } from 'lucide-react'
+import { Settings, Percent, Clock, CreditCard, Bell, MapPin, Save, Check, AlertTriangle, X } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Badge } from '@/components/ui/badge'
 
 const DEFAULT_METODOS_PAGO = {
   efectivo: true,
@@ -16,8 +19,9 @@ const DEFAULT_METODOS_PAGO = {
 }
 
 export function ConfigManager() {
-  const { config, updateConfig, emergencyCloseAllTables, tableSessions } = useApp()
+  const { config, updateConfig, emergencyCloseAllTables, emergencyCloseTables, tableSessions, orders } = useApp()
   const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false)
+  const [selectedTables, setSelectedTables] = useState<number[]>([])
   
   // Ensure all config fields have defaults for backwards compatibility
   const safeConfig = {
@@ -270,54 +274,164 @@ export function ConfigManager() {
           </CardContent>
         </Card>
 
-        {/* Emergency Close All Tables */}
+        {/* Emergency Close Tables */}
         <Card className="border-destructive/50">
           <CardHeader className="p-3 pb-2">
             <CardTitle className="text-xs flex items-center gap-1.5 text-destructive">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Acciones de emergencia
+              Cierre de emergencia
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <p className="text-[9px] text-muted-foreground mb-2">
-              Cierra todas las sesiones de mesa activas. Los pedidos activos asociados se eliminan. El historial no se borra.
-            </p>
             {(() => {
               const activeSessions = tableSessions.filter(s => s.activa)
+              
+              // Get order count per table
+              const getTableOrderCount = (mesa: number) => {
+                return orders.filter(o => o.mesa === mesa && o.status !== 'entregado' && o.status !== 'cancelado').length
+              }
+              
+              const toggleTable = (mesa: number) => {
+                setSelectedTables(prev => 
+                  prev.includes(mesa) 
+                    ? prev.filter(m => m !== mesa)
+                    : [...prev, mesa]
+                )
+              }
+              
+              const selectAll = () => {
+                setSelectedTables(activeSessions.map(s => s.mesa))
+              }
+              
+              const clearSelection = () => {
+                setSelectedTables([])
+              }
+              
               return (
                 <>
-                  <p className="text-[10px] text-muted-foreground mb-2">
-                    Sesiones activas: <span className="font-semibold text-foreground">{activeSessions.length}</span>
+                  <p className="text-[9px] text-muted-foreground mb-2">
+                    Selecciona las mesas que deseas cerrar. Los pedidos activos asociados se eliminaran.
                   </p>
-                  {!showEmergencyConfirm ? (
-                    <Button
-                      variant="outline"
-                      className="w-full h-8 text-xs border-destructive text-destructive hover:bg-destructive/10 bg-transparent"
-                      onClick={() => setShowEmergencyConfirm(true)}
-                      disabled={activeSessions.length === 0}
-                    >
-                      <AlertTriangle className="h-3 w-3 mr-1.5" />
-                      Cerrar mesas (emergencia)
-                    </Button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1 h-8 text-xs bg-transparent"
-                        onClick={() => setShowEmergencyConfirm(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        className="flex-1 h-8 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                        onClick={() => {
-                          emergencyCloseAllTables()
-                          setShowEmergencyConfirm(false)
-                        }}
-                      >
-                        Confirmar cierre
-                      </Button>
+                  
+                  {activeSessions.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <AlertTriangle className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                      <p className="text-xs">No hay mesas activas</p>
                     </div>
+                  ) : (
+                    <>
+                      {/* Selection controls */}
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] text-muted-foreground">
+                          {selectedTables.length} de {activeSessions.length} seleccionadas
+                        </p>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2"
+                            onClick={selectAll}
+                          >
+                            Todas
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2"
+                            onClick={clearSelection}
+                            disabled={selectedTables.length === 0}
+                          >
+                            Ninguna
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Table list */}
+                      <ScrollArea className="max-h-48 border border-border rounded-md mb-3">
+                        <div className="p-2 space-y-1">
+                          {activeSessions
+                            .sort((a, b) => a.mesa - b.mesa)
+                            .map(session => {
+                              const orderCount = getTableOrderCount(session.mesa)
+                              const isSelected = selectedTables.includes(session.mesa)
+                              
+                              return (
+                                <div 
+                                  key={session.id}
+                                  className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors ${
+                                    isSelected 
+                                      ? 'bg-destructive/10 border border-destructive/30' 
+                                      : 'bg-secondary/50 hover:bg-secondary'
+                                  }`}
+                                  onClick={() => toggleTable(session.mesa)}
+                                >
+                                  <Checkbox 
+                                    checked={isSelected}
+                                    className="pointer-events-none"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-foreground">
+                                      Mesa {session.mesa}
+                                    </p>
+                                    <p className="text-[9px] text-muted-foreground">
+                                      Total: ${session.total.toFixed(2)}
+                                    </p>
+                                  </div>
+                                  {orderCount > 0 && (
+                                    <Badge variant="outline" className="text-[9px] h-5 bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                      {orderCount} pedido{orderCount > 1 ? 's' : ''}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )
+                            })}
+                        </div>
+                      </ScrollArea>
+                      
+                      {/* Action buttons */}
+                      {!showEmergencyConfirm ? (
+                        <Button
+                          variant="outline"
+                          className="w-full h-8 text-xs border-destructive text-destructive hover:bg-destructive/10 bg-transparent"
+                          onClick={() => setShowEmergencyConfirm(true)}
+                          disabled={selectedTables.length === 0}
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1.5" />
+                          Cerrar {selectedTables.length} mesa{selectedTables.length !== 1 ? 's' : ''} seleccionada{selectedTables.length !== 1 ? 's' : ''}
+                        </Button>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="p-2 bg-destructive/10 rounded-md border border-destructive/30">
+                            <p className="text-[10px] text-destructive font-medium mb-1">
+                              Confirmar cierre de emergencia
+                            </p>
+                            <p className="text-[9px] text-muted-foreground">
+                              Se cerraran las mesas: {selectedTables.sort((a,b) => a-b).join(', ')}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              className="flex-1 h-8 text-xs bg-transparent"
+                              onClick={() => setShowEmergencyConfirm(false)}
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Cancelar
+                            </Button>
+                            <Button
+                              className="flex-1 h-8 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                              onClick={() => {
+                                emergencyCloseTables(selectedTables)
+                                setSelectedTables([])
+                                setShowEmergencyConfirm(false)
+                              }}
+                            >
+                              Confirmar cierre
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )

@@ -48,6 +48,9 @@
   --kds-queue: #F5F5F5;
   --kds-preparing: #FFF7ED;
   --kds-ready: #F0FDF4;
+  
+  /* Dashboard background - SOLID ORANGE per brand */
+  --dashboard-bg: #FF6A00;
 }
 
 /* No dark mode - always white background */
@@ -64,6 +67,7 @@
   --color-kds-queue: var(--kds-queue);
   --color-kds-preparing: var(--kds-preparing);
   --color-kds-ready: var(--kds-ready);
+  --color-dashboard-bg: var(--dashboard-bg);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

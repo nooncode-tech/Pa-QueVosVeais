@@ -1,22 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Edit2, ImageIcon, Settings2 } from 'lucide-react'
+import { Plus, Edit2, ImageIcon } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatPrice, type MenuItem } from '@/lib/store'
 import { MenuItemDialog } from './menu-item-dialog'
-import { CategoryManager } from './category-manager'
 
 export function MenuManager() {
   const { menuItems, updateMenuItem, categories } = useApp()
   const [showDialog, setShowDialog] = useState(false)
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
-  const [activeTab, setActiveTab] = useState<'platillos' | 'categorias'>('platillos')
   
   const handleToggleAvailability = (item: MenuItem) => {
     updateMenuItem(item.id, { disponible: !item.disponible })
@@ -50,30 +47,17 @@ export function MenuManager() {
             {menuItems.length} platillos en total
           </p>
         </div>
-        {activeTab === 'platillos' && (
-          <Button 
-            className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5" 
-            onClick={handleAdd}
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            Agregar
-          </Button>
-        )}
+        <Button 
+          className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5" 
+          onClick={handleAdd}
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Agregar
+        </Button>
       </div>
       
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'platillos' | 'categorias')}>
-        <TabsList className="grid w-full grid-cols-2 mb-3">
-          <TabsTrigger value="platillos" className="text-xs">
-            Platillos
-          </TabsTrigger>
-          <TabsTrigger value="categorias" className="text-xs">
-            <Settings2 className="h-3 w-3 mr-1" />
-            Categorias
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="platillos" className="mt-0">
+      {/* Menu Items List */}
+      <div>
           {sortedCategories.map((categoria) => {
             const categoryItems = menuItems.filter(item => item.categoria === categoria.nombre)
             
@@ -249,12 +233,7 @@ export function MenuManager() {
               </div>
             )
           })()}
-        </TabsContent>
-        
-        <TabsContent value="categorias" className="mt-0">
-          <CategoryManager />
-        </TabsContent>
-      </Tabs>
+      </div>
       
       {showDialog && (
         <MenuItemDialog

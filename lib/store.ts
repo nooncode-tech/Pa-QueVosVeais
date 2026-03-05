@@ -142,6 +142,19 @@ export interface TableSession {
   receiptId?: string
   feedbackDone?: boolean
 }
+// ============ COBROS / VENTAS ============
+export interface Payment {
+  id: string
+  sessionId: string
+  mesa: number
+  subtotal: number
+  impuestos: number
+  propina: number
+  total: number
+  metodo: PaymentMethod
+  userId: string
+  createdAt: Date
+}
 
 // ============ LLAMADAS DE MESERO ============
 export interface WaiterCall {

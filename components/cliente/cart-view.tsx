@@ -89,11 +89,13 @@ export function CartView({ mesa, onBack, onOrderConfirmed }: CartViewProps) {
             return (
               <div key={item.id} className="flex gap-3 py-2">
                 {/* Image */}
-                <div className="w-16 h-16 bg-secondary rounded-xl flex-shrink-0 flex items-center justify-center">
-                  <span className="text-2xl">
-                    {item.menuItem.categoria === 'Tacos' ? '🌮' : item.menuItem.categoria === 'Antojitos' ? '🫓' : '🥤'}
-                  </span>
-                </div>
+                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-secondary">
+  <img
+    src={item.menuItem.imagen || "/placeholder-food.png"}
+    alt={item.menuItem.nombre}
+    className="w-full h-full object-cover"
+  />
+</div>
                 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between">
