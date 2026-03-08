@@ -4,6 +4,7 @@ import React from "react"
 import { useState } from 'react'
 import { X, Plus, Trash2, ImageIcon, Upload, Archive, AlertTriangle } from 'lucide-react'
 import { useApp } from '@/lib/context'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -206,9 +207,15 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
                   variant="outline"
                   size="sm"
                   className="h-8 px-2 bg-transparent"
-                  onClick={() => {
+                  onClick={async () => {
                     if (newCategoryName.trim()) {
-                      addCategory(newCategoryName.trim())
+                      const name = newCategoryName.trim()
+                        const { data, error } = await supabase
+  .from("categories")
+  .insert({ name })
+
+console.log("SUPABASE RESULT:", data, error)
+                      addCategory(name)
                       setCategoria(newCategoryName.trim())
                       setNewCategoryName('')
                       setShowNewCategory(false)
