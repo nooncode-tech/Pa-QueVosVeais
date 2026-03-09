@@ -2,15 +2,16 @@
 
 import React from "react"
 import { useState } from 'react'
-import { X, Plus, Trash2, ImageIcon, Upload, Archive, AlertTriangle } from 'lucide-react'
+import { X, Plus, Trash2, ImageIcon, Upload, Archive, AlertTriangle, FolderOpen } from 'lucide-react'
 import { useApp } from '@/lib/context'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient } from '@/lib/store'
+import { CategoryManager } from './category-manager'
 
 interface MenuItemDialogProps {
   item: MenuItem | null
@@ -18,17 +19,16 @@ interface MenuItemDialogProps {
 }
 
 export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
-  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients, addCategory, setCategories } = useApp()
+  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients } = useApp()
   const [nombre, setNombre] = useState(item?.nombre || '')
-  const [showNewCategory, setShowNewCategory] = useState(false)
-  const [showCategoryManager, setShowCategoryManager] = useState(false)
-  const [newCategoryName, setNewCategoryName] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [descripcion, setDescripcion] = useState(item?.descripcion || '')
   const [precio, setPrecio] = useState(item?.precio.toString() || '')
   const [categoria, setCategoria] = useState(item?.categoria || categories[0]?.nombre || '')
   const [cocina, setCocina] = useState<Kitchen>(item?.cocina || 'cocina_a')
   const [imagen, setImagen] = useState(item?.imagen || '')
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const [extras, setExtras] = useState<Extra[]>(item?.extras || [])
   const [receta, setReceta] = useState<RecipeIngredient[]>(item?.receta || [])
   
@@ -42,15 +42,15 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const activeCategories = categories.filter(c => c.activa).sort((a, b) => a.orden - b.orden)
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagen(reader.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
+  const file = e.target.files?.[0]
+
+  if (!file) return
+
+  setImageFile(file)
+
+  const preview = URL.createObjectURL(file)
+  setImagen(preview)
+}
   
   // For extra ingredient config
   const [editingExtraId, setEditingExtraId] = useState<string | null>(null)
@@ -91,9 +91,9 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
     }
     
     if (item) {
-      updateMenuItem(item.id, data)
+      updateMenuItem(item.id, data, imageFile)
     } else {
-      addMenuItem(data)
+      addMenuItem(data, imageFile)
     }
     
     onClose()
@@ -193,117 +193,59 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
           </div>
           
           <div>
-            <Label htmlFor="categoria" className="text-xs">Categoria</Label>
-            {showNewCategory ? (
-              <div className="flex gap-1">
-                <Input
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Nueva categoria..."
-                  className="h-8 text-sm flex-1"
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2 bg-transparent"
-                  onClick={async () => {
-                    if (newCategoryName.trim()) {
-                      const name = newCategoryName.trim()
-                        const { data, error } = await supabase
-  .from("categories")
-  .insert({ name })
+  <Label htmlFor="categoria" className="text-xs">Categoria</Label>
 
-console.log("SUPABASE RESULT:", data, error)
-                      addCategory(name)
-                      setCategoria(newCategoryName.trim())
-                      setNewCategoryName('')
-                      setShowNewCategory(false)
-                    }
-                  }}
-                  disabled={!newCategoryName.trim()}
-                >
-                  Crear
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => {
-                    setShowNewCategory(false)
-                    setNewCategoryName('')
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ) : (
-  <>
+  <div className="flex gap-1.5">
+    <Select value={categoria} onValueChange={(v) => setCategoria(v)}>
+      <SelectTrigger className="h-8 text-sm flex-1">
+        <SelectValue />
+      </SelectTrigger>
 
-  <Select value={categoria} onValueChange={(v) => {
-    if (v === '__new__') {
-      setShowNewCategory(true)
-    } else {
-      setCategoria(v)
-    }
-  }}>
-    <SelectTrigger className="h-8 text-sm">
-      <SelectValue />
-    </SelectTrigger>
+      <SelectContent>
+        {activeCategories.map((cat) => (
+          <SelectItem key={cat.id} value={cat.nombre} className="text-sm">
+            {cat.nombre}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
 
-    <SelectContent>
-      {activeCategories.map((cat) => (
-        <SelectItem key={cat.id} value={cat.nombre} className="text-sm">
-          {cat.nombre}
-        </SelectItem>
-      ))}
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      className="h-8 w-8 shrink-0"
+      onClick={() => setShowCategoryManager(true)}
+      title="Administrar categorias"
+    >
+      <FolderOpen className="h-4 w-4" />
+    </Button>
+  </div>
 
-      <SelectItem value="__new__" className="text-sm text-primary font-medium">
-        + Crear nueva categoria
-      </SelectItem>
-    </SelectContent>
-  </Select>
+  <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
+    <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogHeader className="shrink-0">
+        <DialogTitle className="text-sm flex items-center gap-2">
+          <FolderOpen className="h-4 w-4" />
+          Administrar Categorias
+        </DialogTitle>
+      </DialogHeader>
 
-  <Button
-    type="button"
-    variant="outline"
-    size="sm"
-    className="mt-2 w-full text-xs"
-    onClick={() => setShowCategoryManager(!showCategoryManager)}
-  >
-    Administrar categorias
-  </Button>
+      <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-2">
+        <CategoryManager />
+      </div>
 
-  {showCategoryManager && (
-    <div className="border rounded-md p-2 mt-2 space-y-1">
-      {activeCategories.map(cat => (
-        <div key={cat.id} className="flex justify-between items-center">
-          <span className="text-xs">{cat.nombre}</span>
-
-          <button
-  type="button"
-  className="text-red-500 text-xs"
-  onClick={() => {
-    if (!confirm("Eliminar esta categoría?")) return;
-
-    const updated = categories.filter(c => c.id !== cat.id);
-
-    localStorage.setItem("categories", JSON.stringify(updated));
-
-    window.location.reload();
-  }}
->
-  eliminar
-</button>
-        </div>
-      ))}
-    </div>
-  )}
-
-  </>
-  )}
+      <div className="shrink-0 pt-3 border-t border-border">
+        <Button
+          variant="outline"
+          className="w-full h-8 text-xs"
+          onClick={() => setShowCategoryManager(false)}
+        >
+          Cerrar
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
 </div>
           
           <div>

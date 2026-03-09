@@ -1,13 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Edit2, Trash2, GripVertical, Check, X } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, Edit2, Trash2, Check, X, Package } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,83 +17,92 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { DEFAULT_INGREDIENT_CATEGORIES } from '@/lib/store'
 
-export function CategoryManager() {
-  const { categories, menuItems, addCategory, updateCategory, deleteCategory, reorderCategories } = useApp()
+export function IngredientCategoryManager() {
+  const { ingredients, updateIngredient } = useApp()
   const [newCategoryName, setNewCategoryName] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingCategory, setEditingCategory] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [localCategories, setLocalCategories] = useState<string[]>([])
   
-  // Show all categories (including inactive) so users can reactivate them
-  const sortedCategories = [...categories].sort((a, b) => {
-    // Active categories first, then sort by order
-    if (a.activa !== b.activa) return a.activa ? -1 : 1
-    return a.orden - b.orden
-  })
+  // Derive all unique categories from ingredients + defaults + locally added
+  const allCategories = useMemo(() => {
+    const fromIngredients = ingredients.filter(i => i.activo !== false).map(i => i.categoria)
+    const combined = [...new Set([...DEFAULT_INGREDIENT_CATEGORIES, ...fromIngredients, ...localCategories])]
+    return combined.sort()
+  }, [ingredients, localCategories])
+  
+  const getCategoryIngredientCount = (categoryName: string) => {
+    return ingredients.filter(i => i.categoria === categoryName && i.activo !== false).length
+  }
   
   const handleAddCategory = () => {
     if (!newCategoryName.trim()) return
-    addCategory(newCategoryName.trim())
+    if (allCategories.includes(newCategoryName.trim())) return
+    setLocalCategories(prev => [...prev, newCategoryName.trim()])
     setNewCategoryName('')
   }
   
-  const handleStartEdit = (categoryId: string, currentName: string) => {
-    setEditingId(categoryId)
-    setEditingName(currentName)
+  const handleStartEdit = (category: string) => {
+    setEditingCategory(category)
+    setEditingName(category)
   }
   
   const handleSaveEdit = () => {
-    if (editingId && editingName.trim()) {
-      updateCategory(editingId, { nombre: editingName.trim() })
+    if (!editingCategory || !editingName.trim()) {
+      handleCancelEdit()
+      return
     }
-    setEditingId(null)
-    setEditingName('')
+    
+    const oldName = editingCategory
+    const newName = editingName.trim()
+    
+    if (oldName !== newName) {
+      // Update all ingredients with this category to the new name
+      ingredients.forEach(ing => {
+        if (ing.categoria === oldName) {
+          updateIngredient(ing.id, { categoria: newName })
+        }
+      })
+      
+      // If it was a locally added category, update local state
+      setLocalCategories(prev => prev.map(c => c === oldName ? newName : c))
+    }
+    
+    handleCancelEdit()
   }
   
   const handleCancelEdit = () => {
-    setEditingId(null)
+    setEditingCategory(null)
     setEditingName('')
   }
   
-  const handleToggleActive = (categoryId: string, currentActive: boolean) => {
-    updateCategory(categoryId, { activa: !currentActive })
-  }
-  
-  const handleDeleteCategory = (categoryId: string) => {
-    deleteCategory(categoryId)
+  const handleDeleteCategory = (category: string) => {
+    const count = getCategoryIngredientCount(category)
+    
+    if (count > 0) {
+      // Move ingredients to "Otros" instead of deleting
+      ingredients.forEach(ing => {
+        if (ing.categoria === category && ing.activo !== false) {
+          updateIngredient(ing.id, { categoria: 'Otros' })
+        }
+      })
+    }
+    
+    // Remove from local categories if present
+    setLocalCategories(prev => prev.filter(c => c !== category))
     setDeleteConfirm(null)
-  }
-  
-  const handleMoveUp = (index: number) => {
-    if (index === 0) return
-    const newOrder = [...sortedCategories]
-    const temp = newOrder[index]
-    newOrder[index] = newOrder[index - 1]
-    newOrder[index - 1] = temp
-    reorderCategories(newOrder.map(c => c.id))
-  }
-  
-  const handleMoveDown = (index: number) => {
-    if (index === sortedCategories.length - 1) return
-    const newOrder = [...sortedCategories]
-    const temp = newOrder[index]
-    newOrder[index] = newOrder[index + 1]
-    newOrder[index + 1] = temp
-    reorderCategories(newOrder.map(c => c.id))
-  }
-  
-  const getCategoryItemCount = (categoryName: string) => {
-    return menuItems.filter(item => item.categoria === categoryName).length
   }
   
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Categorias del Menu</h3>
+          <h3 className="text-sm font-semibold text-foreground">Categorias de Ingredientes</h3>
           <p className="text-xs text-muted-foreground">
-            Organiza y administra las categorias de tus platillos
+            Organiza y administra las categorias de tus ingredientes
           </p>
         </div>
       </div>
@@ -110,7 +118,7 @@ export function CategoryManager() {
         />
         <Button 
           onClick={handleAddCategory}
-          disabled={!newCategoryName.trim()}
+          disabled={!newCategoryName.trim() || allCategories.includes(newCategoryName.trim())}
           className="h-8 px-3 text-xs"
         >
           <Plus className="h-3 w-3 mr-1" />
@@ -120,34 +128,19 @@ export function CategoryManager() {
       
       {/* Categories list */}
       <div className="space-y-2">
-        {sortedCategories.map((category, index) => {
-          const itemCount = getCategoryItemCount(category.nombre)
-          const isEditing = editingId === category.id
+        {allCategories.map((category) => {
+          const ingredientCount = getCategoryIngredientCount(category)
+          const isEditing = editingCategory === category
+          const isDefault = DEFAULT_INGREDIENT_CATEGORIES.includes(category)
           
           return (
             <Card 
-              key={category.id} 
-              className={`border transition-all ${!category.activa ? 'opacity-60' : ''}`}
+              key={category} 
+              className="border transition-all"
             >
               <CardContent className="p-2">
                 <div className="flex items-center gap-2">
-                  {/* Drag handle / reorder buttons */}
-                  <div className="flex flex-col gap-0.5">
-                    <button
-                      onClick={() => handleMoveUp(index)}
-                      disabled={index === 0}
-                      className="p-0.5 hover:bg-secondary rounded disabled:opacity-30"
-                    >
-                      <GripVertical className="h-3 w-3 rotate-180" />
-                    </button>
-                    <button
-                      onClick={() => handleMoveDown(index)}
-                      disabled={index === sortedCategories.length - 1}
-                      className="p-0.5 hover:bg-secondary rounded disabled:opacity-30"
-                    >
-                      <GripVertical className="h-3 w-3" />
-                    </button>
-                  </div>
+                  <Package className="h-4 w-4 text-muted-foreground shrink-0" />
                   
                   {/* Category name */}
                   <div className="flex-1 min-w-0">
@@ -183,11 +176,16 @@ export function CategoryManager() {
                     ) : (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground truncate">
-                          {category.nombre}
+                          {category}
                         </span>
                         <Badge variant="outline" className="text-[9px] h-4 px-1">
-                          {itemCount} platillos
+                          {ingredientCount} ingrediente{ingredientCount !== 1 ? 's' : ''}
                         </Badge>
+                        {isDefault && (
+                          <Badge variant="secondary" className="text-[8px] h-3.5 px-1">
+                            predeterminado
+                          </Badge>
+                        )}
                       </div>
                     )}
                   </div>
@@ -195,21 +193,10 @@ export function CategoryManager() {
                   {/* Actions */}
                   {!isEditing && (
                     <div className="flex items-center gap-1">
-                      <div className="flex items-center gap-1 mr-2">
-                        <Switch
-                          checked={category.activa}
-                          onCheckedChange={() => handleToggleActive(category.id, category.activa)}
-                          className="scale-[0.7]"
-                        />
-                        <span className="text-[9px] text-muted-foreground">
-                          {category.activa ? 'Activa' : 'Inactiva'}
-                        </span>
-                      </div>
-                      
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleStartEdit(category.id, category.nombre)}
+                        onClick={() => handleStartEdit(category)}
                         className="h-6 w-6"
                       >
                         <Edit2 className="h-3 w-3" />
@@ -218,10 +205,9 @@ export function CategoryManager() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setDeleteConfirm(category.id)}
+                        onClick={() => setDeleteConfirm(category)}
                         className="h-6 w-6 text-destructive hover:text-destructive"
-                        disabled={itemCount > 0}
-                        title={itemCount > 0 ? 'No se puede eliminar categoria con platillos' : ''}
+                        title={ingredientCount > 0 ? 'Los ingredientes se moveran a "Otros"' : 'Eliminar categoria'}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -234,7 +220,7 @@ export function CategoryManager() {
         })}
       </div>
       
-      {sortedCategories.length === 0 && (
+      {allCategories.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">
           No hay categorias. Agrega una para comenzar.
         </div>
@@ -244,9 +230,16 @@ export function CategoryManager() {
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Desactivar Categoria</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar Categoria</AlertDialogTitle>
             <AlertDialogDescription>
-              La categoria sera marcada como inactiva y no aparecera en el menu. Puedes reactivarla mas tarde usando el interruptor de estado.
+              {deleteConfirm && getCategoryIngredientCount(deleteConfirm) > 0 ? (
+                <>
+                  Esta categoria tiene <strong>{getCategoryIngredientCount(deleteConfirm)}</strong> ingrediente(s).
+                  Los ingredientes seran movidos a la categoria &quot;Otros&quot;.
+                </>
+              ) : (
+                'Esta accion eliminara la categoria. Esta seguro?'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -255,7 +248,7 @@ export function CategoryManager() {
               onClick={() => deleteConfirm && handleDeleteCategory(deleteConfirm)}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Desactivar
+              {deleteConfirm && getCategoryIngredientCount(deleteConfirm) > 0 ? 'Mover y Eliminar' : 'Eliminar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

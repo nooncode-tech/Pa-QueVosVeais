@@ -111,9 +111,9 @@ export function AdminView({ onBack }: AdminViewProps) {
 
   // Mobile layout
   const MobileLayout = () => (
-    <div className="min-h-screen bg-primary flex flex-col md:hidden">
+    <div className="min-h-screen bg-background flex flex-col md:hidden">
       {/* Mobile Header - Orange bg with white elements */}
-      <header className="sticky top-0 z-50 bg-primary border-b border-primary-foreground/20 shadow-sm">
+      <header className="sticky top-0 z-50 bg-primary shadow-sm">
         <div className="px-3 py-2">
           <div className="flex items-center gap-2">
             <Button
@@ -164,9 +164,9 @@ export function AdminView({ onBack }: AdminViewProps) {
         </div>
       </header>
 
-      {/* Mobile Content - White card background */}
-      <main className="flex-1 p-3">
-        <div className="bg-card rounded-lg shadow-sm min-h-full p-3">
+      {/* Mobile Content - Clean minimal layout */}
+      <main className="flex-1 overflow-auto">
+        <div className="bg-card min-h-full">
           {screen === 'reports' && <ReportsManager />}
           {screen === 'closing' && <DailyClosing />}
           {screen === 'orders' && <OrdersManager />}

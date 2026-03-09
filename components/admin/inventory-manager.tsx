@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Plus, AlertTriangle, Package, TrendingDown, TrendingUp, Edit2, History, X, Calendar, Filter } from 'lucide-react'
+import { Plus, AlertTriangle, Package, TrendingDown, TrendingUp, Edit2, History, X, Calendar, Filter, FolderOpen } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Ingredient, IngredientCategory, InventoryAdjustment } from '@/lib/store'
 import { DEFAULT_INGREDIENT_CATEGORIES } from '@/lib/store'
+import { IngredientCategoryManager } from './ingredient-category-manager'
 
 export function InventoryManager() {
   const { 
@@ -30,6 +31,7 @@ export function InventoryManager() {
   const [showAdjustDialog, setShowAdjustDialog] = useState<Ingredient | null>(null)
   const [showAdvancedDialog, setShowAdvancedDialog] = useState<Ingredient | null>(null)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false)
   const [activeTab, setActiveTab] = useState<'all' | 'low'>('all')
   const [showDeleteBlockedDialog, setShowDeleteBlockedDialog] = useState<{ingredient: Ingredient, reasons: string[]} | null>(null)
   
@@ -138,13 +140,23 @@ export function InventoryManager() {
         <h2 className="text-xs font-semibold text-foreground">
           {activeTab === 'low' ? 'Ingredientes con stock bajo' : 'Todos los ingredientes'}
         </h2>
-        <Button 
-          className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5"
-          onClick={() => setShowAddDialog(true)}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Agregar
-        </Button>
+        <div className="flex gap-1.5">
+          <Button 
+            variant="outline"
+            className="h-7 text-[10px] px-2.5"
+            onClick={() => setShowCategoryDialog(true)}
+          >
+            <FolderOpen className="h-3 w-3 mr-1" />
+            Categorias
+          </Button>
+          <Button 
+            className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5"
+            onClick={() => setShowAddDialog(true)}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Agregar
+          </Button>
+        </div>
       </div>
       
       {/* Ingredients List */}
@@ -329,6 +341,28 @@ export function InventoryManager() {
             setShowAddDialog(false)
           }}
         />
+      )}
+      
+      {/* Category Management Dialog */}
+      {showCategoryDialog && (
+        <Dialog open onOpenChange={() => setShowCategoryDialog(false)}>
+          <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="text-sm flex items-center gap-2">
+                <FolderOpen className="h-4 w-4" />
+                Administrar Categorias
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-2">
+              <IngredientCategoryManager />
+            </div>
+            <div className="shrink-0 pt-3 border-t border-border">
+              <Button variant="outline" className="w-full h-8 text-xs" onClick={() => setShowCategoryDialog(false)}>
+                Cerrar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

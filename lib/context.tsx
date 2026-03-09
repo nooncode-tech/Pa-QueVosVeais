@@ -1,6 +1,25 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { supabase } from "./supabase"
+async function uploadMenuImage(file: File) {
+  const fileName = `${Date.now()}-${file.name}`
+
+  const { error } = await supabase.storage
+    .from("menu-images")
+    .upload(fileName, file)
+
+  if (error) {
+    console.error("Error subiendo imagen:", error)
+    return null
+  }
+
+  const { data } = supabase.storage
+    .from("menu-images")
+    .getPublicUrl(fileName)
+
+  return data.publicUrl
+}
 import {
   type Order,
   type OrderItem,
@@ -246,7 +265,7 @@ function loadState(): AppState {
           createdAt: new Date(r.createdAt),
         })) || [],
         deliveryZones: parsed.deliveryZones || DEFAULT_DELIVERY_ZONES,
-        categories: parsed.categories || DEFAULT_CATEGORIES,
+        categories: parsed.categories || [],
         tables: parsed.tables?.map((t: TableConfig) => ({
           ...t,
           createdAt: new Date(t.createdAt),
@@ -299,7 +318,7 @@ function getDefaultState(): AppState {
     qrTokens: [],
     refunds: [],
     deliveryZones: DEFAULT_DELIVERY_ZONES,
-    categories: DEFAULT_CATEGORIES,
+    categories: [],
     tables: DEFAULT_TABLES,
     cart: [],
     currentTable: null,
@@ -320,6 +339,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsHydrated(true)
   }, [])
   
+  useEffect(() => {
+
+  const cargarMenu = async () => {
+    const { data, error } = await supabase
+      .from("menu_items")
+      .select("*")
+
+    if (error) {
+      console.error(error)
+      return
+    }
+
+    if (data) {
+      const items = data.map(item => ({
+        id: item.id,
+        nombre: item.name,
+        descripcion: item.description,
+        precio: Number(item.price) || 0,
+        categoria: "Tacos",
+        cocina: "cocina_a",
+        disponible: item.available ?? true,
+        imagen: item.image ?? undefined
+      }))
+
+      setState(prev => ({
+        ...prev,
+        menuItems: items
+      }))
+    }
+  }
+
+  const cargarCategorias = async () => {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("name")
+
+    if (error) {
+      console.error("Error cargando categorias:", error)
+      return
+    }
+
+    if (data) {
+      const categorias = data.map(c => ({
+        id: c.id,
+        nombre: c.name,
+        activa: true,
+        orden: 0
+      }))
+
+      setState(prev => ({
+        ...prev,
+        categories: categorias
+      }))
+    }
+  }
+
+  cargarMenu()
+  cargarCategorias()
+
+}, [])
+
   // Save state to localStorage after hydration
   useEffect(() => {
     if (isHydrated) {
@@ -1002,28 +1083,97 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
   }, [state.rewards, state.appliedRewards])
   
   // ============ MENU ACTIONS ============
-  const updateMenuItem = useCallback((itemId: string, updates: Partial<MenuItem>) => {
-    setState(prev => ({
-      ...prev,
-      menuItems: prev.menuItems.map(item =>
-        item.id === itemId ? { ...item, ...updates } : item
-      ),
-    }))
-  }, [])
+  const updateMenuItem = useCallback(async (itemId: string, updates: Partial<MenuItem>) => {
+
+  const { data, error } = await supabase
+    .from("menu_items")
+    .update({
+      name: updates.nombre,
+      description: updates.descripcion,
+      price: updates.precio,
+      available: updates.disponible
+    })
+    .eq("id", itemId)
+    .select()
+
+  if (error) {
+    console.error("Error actualizando platillo:", error)
+    return
+  }
+
+  setState(prev => ({
+    ...prev,
+    menuItems: prev.menuItems.map(item =>
+      item.id === itemId ? { ...item, ...updates } : item
+    )
+  }))
+
+}, [])
   
-  const addMenuItem = useCallback((item: Omit<MenuItem, 'id'>) => {
+  const addMenuItem = useCallback(async (item: Omit<MenuItem, 'id'>, imageFile?: File) => {
+
+  let imageUrl = null
+
+  if (imageFile) {
+    imageUrl = await uploadMenuImage(imageFile)
+  }
+
+  const { data, error } = await supabase
+    .from("menu_items")
+    .insert([
+      {
+        name: item.nombre,
+        description: item.descripcion,
+        price: item.precio,
+        available: item.disponible,
+        image: imageUrl
+      }
+    ])
+    .select()
+
+  if (error) {
+    console.error(error)
+    return
+  }
+
+  if (data) {
+    const newItem = {
+      id: data[0].id,
+      nombre: data[0].name,
+      descripcion: data[0].description,
+      precio: data[0].price,
+      categoria: item.categoria,
+      cocina: item.cocina,
+      disponible: data[0].available,
+      imagen: data[0].image
+    }
+
     setState(prev => ({
       ...prev,
-      menuItems: [...prev.menuItems, { ...item, id: generateId() }],
+      menuItems: [...prev.menuItems, newItem]
     }))
-  }, [])
+  }
+
+}, [])
   
-  const deleteMenuItem = useCallback((itemId: string) => {
-    setState(prev => ({
-      ...prev,
-      menuItems: prev.menuItems.filter(item => item.id !== itemId),
-    }))
-  }, [])
+  const deleteMenuItem = useCallback(async (itemId: string) => {
+
+  const { error } = await supabase
+    .from("menu_items")
+    .delete()
+    .eq("id", itemId)
+
+  if (error) {
+    console.error("Error eliminando platillo:", error)
+    return
+  }
+
+  setState(prev => ({
+    ...prev,
+    menuItems: prev.menuItems.filter(item => item.id !== itemId)
+  }))
+
+}, [])
   
   const getAvailableMenuItems = useCallback((): MenuItem[] => {
     return state.menuItems.filter(item => {
@@ -1034,18 +1184,33 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
   }, [state.menuItems, state.ingredients])
   
   // ============ CATEGORY ACTIONS ============
-  const addCategory = useCallback((nombre: string) => {
-    const newCategory: MenuCategory = {
-      id: generateId(),
-      nombre,
-      orden: state.categories.length + 1,
+  const addCategory = useCallback(async (nombre: string) => {
+
+  const { data, error } = await supabase
+    .from("categories")
+    .insert([{ name: nombre }])
+    .select()
+
+  if (error) {
+    console.error("Error creando categoria:", error)
+    return
+  }
+
+  if (data) {
+    const nueva: MenuCategory = {
+      id: data[0].id,
+      nombre: data[0].name,
       activa: true,
+      orden: state.categories.length + 1
     }
+
     setState(prev => ({
       ...prev,
-      categories: [...prev.categories, newCategory],
+      categories: [...prev.categories, nueva]
     }))
-  }, [state.categories.length])
+  }
+
+}, [state.categories])
   
   const updateCategory = useCallback((categoryId: string, updates: Partial<MenuCategory>) => {
     setState(prev => ({
@@ -1056,12 +1221,24 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     }))
   }, [])
   
-  const deleteCategory = useCallback((categoryId: string) => {
-    setState(prev => ({
-      ...prev,
-      categories: prev.categories.filter(cat => cat.id !== categoryId),
-    }))
-  }, [])
+  const deleteCategory = useCallback(async (categoryId: string) => {
+
+  const { error } = await supabase
+    .from("categories")
+    .delete()
+    .eq("id", categoryId)
+
+  if (error) {
+    console.error("Error eliminando categoria:", error)
+    return
+  }
+
+  setState(prev => ({
+    ...prev,
+    categories: prev.categories.filter(cat => cat.id !== categoryId),
+  }))
+
+}, [])
   
   const reorderCategories = useCallback((categoryIds: string[]) => {
     setState(prev => ({
