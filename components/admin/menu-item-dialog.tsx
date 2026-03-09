@@ -18,9 +18,10 @@ interface MenuItemDialogProps {
 }
 
 export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
-  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients, addCategory } = useApp()
+  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients, addCategory, setCategories } = useApp()
   const [nombre, setNombre] = useState(item?.nombre || '')
   const [showNewCategory, setShowNewCategory] = useState(false)
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [descripcion, setDescripcion] = useState(item?.descripcion || '')
@@ -239,29 +240,71 @@ console.log("SUPABASE RESULT:", data, error)
                 </Button>
               </div>
             ) : (
-              <Select value={categoria} onValueChange={(v) => {
-                if (v === '__new__') {
-                  setShowNewCategory(true)
-                } else {
-                  setCategoria(v)
-                }
-              }}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeCategories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.nombre} className="text-sm">
-                      {cat.nombre}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="__new__" className="text-sm text-primary font-medium">
-                    + Crear nueva categoria
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+  <>
+
+  <Select value={categoria} onValueChange={(v) => {
+    if (v === '__new__') {
+      setShowNewCategory(true)
+    } else {
+      setCategoria(v)
+    }
+  }}>
+    <SelectTrigger className="h-8 text-sm">
+      <SelectValue />
+    </SelectTrigger>
+
+    <SelectContent>
+      {activeCategories.map((cat) => (
+        <SelectItem key={cat.id} value={cat.nombre} className="text-sm">
+          {cat.nombre}
+        </SelectItem>
+      ))}
+
+      <SelectItem value="__new__" className="text-sm text-primary font-medium">
+        + Crear nueva categoria
+      </SelectItem>
+    </SelectContent>
+  </Select>
+
+  <Button
+    type="button"
+    variant="outline"
+    size="sm"
+    className="mt-2 w-full text-xs"
+    onClick={() => setShowCategoryManager(!showCategoryManager)}
+  >
+    Administrar categorias
+  </Button>
+
+  {showCategoryManager && (
+    <div className="border rounded-md p-2 mt-2 space-y-1">
+      {activeCategories.map(cat => (
+        <div key={cat.id} className="flex justify-between items-center">
+          <span className="text-xs">{cat.nombre}</span>
+
+          <button
+  type="button"
+  className="text-red-500 text-xs"
+  onClick={() => {
+    if (!confirm("Eliminar esta categoría?")) return;
+
+    const updated = categories.filter(c => c.id !== cat.id);
+
+    localStorage.setItem("categories", JSON.stringify(updated));
+
+    window.location.reload();
+  }}
+>
+  eliminar
+</button>
+        </div>
+      ))}
+    </div>
+  )}
+
+  </>
+  )}
+</div>
           
           <div>
             <Label htmlFor="cocina" className="text-xs">Estacion de cocina</Label>
