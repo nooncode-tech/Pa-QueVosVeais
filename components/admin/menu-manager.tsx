@@ -59,7 +59,7 @@ export function MenuManager() {
       {/* Menu Items List */}
       <div>
           {sortedCategories.map((categoria) => {
-            const categoryItems = menuItems.filter(item => item.categoria === categoria.nombre)
+            const categoryItems = menuItems.filter(item => item.categoria === categoria.id)
             
             if (categoryItems.length === 0) return null
             
@@ -158,8 +158,8 @@ export function MenuManager() {
           {/* Items without category */}
           {(() => {
             const uncategorizedItems = menuItems.filter(
-              item => !sortedCategories.some(c => c.nombre === item.categoria)
-            )
+  item => !sortedCategories.some(c => c.id === item.categoria)
+)
             if (uncategorizedItems.length === 0) return null
             
             return (

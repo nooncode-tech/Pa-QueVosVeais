@@ -25,7 +25,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [descripcion, setDescripcion] = useState(item?.descripcion || '')
   const [precio, setPrecio] = useState(item?.precio.toString() || '')
-  const [categoria, setCategoria] = useState(item?.categoria || categories[0]?.nombre || '')
+  const [categoria, setCategoria] = useState(item?.categoria || categories[0]?.id || '')
   const [cocina, setCocina] = useState<Kitchen>(item?.cocina || 'cocina_a')
   const [imagen, setImagen] = useState(item?.imagen || '')
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -203,7 +203,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
 
       <SelectContent>
         {activeCategories.map((cat) => (
-          <SelectItem key={cat.id} value={cat.nombre} className="text-sm">
+          <SelectItem key={cat.id} value={cat.id} className="text-sm">
             {cat.nombre}
           </SelectItem>
         ))}
