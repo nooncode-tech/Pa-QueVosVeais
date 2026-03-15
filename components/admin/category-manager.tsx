@@ -244,9 +244,9 @@ export function CategoryManager() {
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Desactivar Categoria</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar categoría</AlertDialogTitle>
             <AlertDialogDescription>
-              La categoria sera marcada como inactiva y no aparecera en el menu. Puedes reactivarla mas tarde usando el interruptor de estado.
+             La categoría será eliminada permanentemente.Los platillos que usaban esta categoría pasarán a "Sin categoría".
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

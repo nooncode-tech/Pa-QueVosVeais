@@ -1238,6 +1238,13 @@ const addMenuItem = useCallback(
   
   const deleteCategory = useCallback(async (categoryId: string) => {
 
+  // 1️⃣ quitar categoria a los platillos
+  await supabase
+    .from("menu_items")
+    .update({ category_id: null })
+    .eq("category_id", categoryId)
+
+  // 2️⃣ borrar categoria
   const { error } = await supabase
     .from("categories")
     .delete()
