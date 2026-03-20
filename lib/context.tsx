@@ -447,14 +447,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        // Token expirado o inválido — limpiar sesión para evitar el overlay de error
+        supabase.auth.signOut()
+        return
+      }
       if (session?.user) restoreProfile(session.user.id)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        restoreProfile(session.user.id)
-      } else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) restoreProfile(session.user.id)
+      } else if (event === 'SIGNED_OUT') {
         setState(prev => ({ ...prev, currentUser: null }))
       }
     })
@@ -514,9 +519,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const cargarIngredientes = async () => {
     const { data, error } = await supabase.from('ingredients').select('*').eq('activo', true).order('nombre')
     if (error) { console.error('Error cargando ingredientes:', error); return }
-    if (data && data.length > 0) {
-      setState(prev => ({ ...prev, ingredients: data.map(mapIngredient) }))
-    }
+    if (data) setState(prev => ({ ...prev, ingredients: data.map(mapIngredient) }))
   }
 
   const cargarAjustes = async () => {
@@ -528,7 +531,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
     if (error) { console.error('Error cargando ajustes:', error); return }
-    if (data && data.length > 0) {
+    if (data) {
       const ajustes: InventoryAdjustment[] = data.map(row => ({
         id: row.id as string,
         ingredientId: row.ingredient_id as string,
@@ -545,7 +548,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const cargarSesiones = async () => {
     const { data, error } = await supabase.from('table_sessions').select('*').eq('activa', true)
     if (error) { console.error('Error cargando sesiones:', error); return }
-    if (data && data.length > 0) {
+    if (data) {
       const sesiones: TableSession[] = data.map(row => ({ ...mapSession(row), orders: [] }))
       setState(prev => ({ ...prev, tableSessions: sesiones }))
     }
@@ -554,9 +557,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const cargarTables = async () => {
     const { data, error } = await supabase.from('tables_config').select('*').order('numero')
     if (error) { console.error('Error cargando mesas:', error); return }
-    if (data && data.length > 0) {
-      setState(prev => ({ ...prev, tables: data.map(mapTableConfig) }))
-    }
+    if (data) setState(prev => ({ ...prev, tables: data.map(mapTableConfig) }))
   }
 
   const cargarReembolsos = async () => {
@@ -568,7 +569,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
     if (error) { console.error('Error cargando reembolsos:', error); return }
-    if (data && data.length > 0) {
+    if (data) {
       const refunds: Refund[] = data.map(row => ({
         id: row.id as string,
         orderId: row.order_id as string,
