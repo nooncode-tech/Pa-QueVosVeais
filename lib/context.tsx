@@ -505,12 +505,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const cargarSesiones = async () => {
+    const { data, error } = await supabase
+      .from('table_sessions')
+      .select('*')
+      .eq('activa', true)
+    if (error) { console.error('Error cargando sesiones:', error); return }
+    if (data && data.length > 0) {
+      const sesiones: TableSession[] = data.map(row => ({
+        id: row.id as string,
+        mesa: row.mesa as number,
+        activa: row.activa as boolean,
+        orders: [],
+        createdAt: new Date(row.created_at as string),
+        expiresAt: row.expires_at ? new Date(row.expires_at as string) : new Date(Date.now() + 3 * 60 * 60 * 1000),
+        deviceId: row.device_id as string ?? '',
+        billStatus: row.bill_status as BillStatus,
+        subtotal: Number(row.subtotal) ?? 0,
+        impuestos: Number(row.impuestos) ?? 0,
+        propina: Number(row.propina) ?? 0,
+        descuento: Number(row.descuento) ?? 0,
+        descuentoMotivo: row.descuento_motivo as string | undefined,
+        total: Number(row.total) ?? 0,
+        paymentMethod: row.payment_method as PaymentMethod | undefined,
+        paymentStatus: row.payment_status as PaymentStatus,
+        paidAt: row.paid_at ? new Date(row.paid_at as string) : undefined,
+      }))
+      setState(prev => ({ ...prev, tableSessions: sesiones }))
+    }
+  }
+
+  const cargarReembolsos = async () => {
+    const since = new Date()
+    since.setMonth(since.getMonth() - 3)
+    const { data, error } = await supabase
+      .from('refunds')
+      .select('*')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+    if (error) { console.error('Error cargando reembolsos:', error); return }
+    if (data && data.length > 0) {
+      const refunds: Refund[] = data.map(row => ({
+        id: row.id as string,
+        orderId: row.order_id as string,
+        sessionId: row.session_id as string | undefined,
+        monto: Number(row.monto),
+        motivo: row.motivo as string,
+        tipo: row.tipo as Refund['tipo'],
+        itemsReembolsados: row.items_reembolsados as string[] | undefined,
+        inventarioRevertido: row.inventario_revertido as boolean,
+        userId: row.user_id as string,
+        createdAt: new Date(row.created_at as string),
+      }))
+      setState(prev => ({ ...prev, refunds }))
+    }
+  }
+
+  const cargarConfig = async () => {
+    const { data, error } = await supabase.from('app_config').select('*').eq('id', 'default').single()
+    if (error) { console.error('Error cargando config:', error); return }
+    if (data) {
+      const config: AppConfig = {
+        impuestoPorcentaje: Number(data.impuesto_porcentaje) ?? 16,
+        propinaSugeridaPorcentaje: Number(data.propina_sugerida_porcentaje) ?? 15,
+        tiempoExpiracionSesionMinutos: Number(data.tiempo_expiracion_sesion_minutos) ?? 180,
+        zonasReparto: (data.zonas_reparto as string[]) ?? [],
+        horariosOperacion: (data.horarios_operacion as AppConfig['horariosOperacion']) ?? [],
+        metodospagoActivos: (data.metodos_pago_activos as AppConfig['metodospagoActivos']) ?? { efectivo: true, tarjeta: true, transferencia: true },
+        sonidoNuevosPedidos: data.sonido_nuevos_pedidos as boolean ?? true,
+        notificacionesStockBajo: data.notificaciones_stock_bajo as boolean ?? true,
+      }
+      setState(prev => ({ ...prev, config }))
+    }
+  }
+
   cargarMenu()
   cargarCategorias()
   cargarOrders()
   cargarUsers()
   cargarIngredientes()
   cargarAjustes()
+  cargarSesiones()
+  cargarReembolsos()
+  cargarConfig()
 
 }, [])
 
@@ -789,69 +866,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
       zonaReparto: clienteInfo?.zonaReparto,
     }
     
+    // Capture session info to sync after setState
+    // eslint-disable-next-line prefer-const
+    const sessionSyncRef: { data: { id: string; isNew: boolean; subtotal: number; impuestos: number; total: number; mesa: number; expiresAt: Date; deviceId: string } | null } = { data: null }
+
     setState(prev => {
-      // Update table session if applicable
       let tableSessions = prev.tableSessions
       if (mesa) {
         const sessionIndex = tableSessions.findIndex(s => s.mesa === mesa && s.activa)
         if (sessionIndex >= 0) {
-  const session = tableSessions[sessionIndex]
-
-  const newOrders = [...session.orders, order]
-  const subtotal = newOrders.reduce(
-    (sum, o) => sum + calculateOrderTotal(o.items),
-    0
-  )
-  const impuestos = subtotal * (prev.config.impuestoPorcentaje / 100)
-
-  tableSessions = [...tableSessions]
-  tableSessions[sessionIndex] = {
-    ...session,
-    orders: newOrders,
-    subtotal,
-    impuestos,
-    total: subtotal + impuestos + session.propina - session.descuento,
-
-    // 🔥 ESTO ES LO QUE ARREGLA TODO
-    billStatus: 'abierta',
-    paymentStatus: 'pendiente',
-    paidAt: undefined,
-    receiptId: undefined,
-  }
-}
- else {
-          // Create new session
+          const session = tableSessions[sessionIndex]
+          const newOrders = [...session.orders, order]
+          const subtotal = newOrders.reduce((sum, o) => sum + calculateOrderTotal(o.items), 0)
+          const impuestos = subtotal * (prev.config.impuestoPorcentaje / 100)
+          const total = subtotal + impuestos + session.propina - session.descuento
+          tableSessions = [...tableSessions]
+          tableSessions[sessionIndex] = {
+            ...session,
+            orders: newOrders,
+            subtotal,
+            impuestos,
+            total,
+            billStatus: 'abierta',
+            paymentStatus: 'pendiente',
+            paidAt: undefined,
+            receiptId: undefined,
+          }
+          sessionSyncRef.data = { id: session.id, isNew: false, subtotal, impuestos, total, mesa, expiresAt: session.expiresAt, deviceId: session.deviceId }
+        } else {
           const subtotal = calculateOrderTotal(order.items)
           const impuestos = subtotal * (prev.config.impuestoPorcentaje / 100)
-          
-          tableSessions = [
-            ...tableSessions,
-            {
-              id: generateId(),
-              mesa,
-              activa: true,
-              orders: [order],
-              createdAt: new Date(),
-              expiresAt: new Date(Date.now() + prev.config.tiempoExpiracionSesionMinutos * 60 * 1000),
-              deviceId: generateDeviceId(),
-              billStatus: 'abierta',
-              subtotal,
-              impuestos,
-              propina: 0,
-              descuento: 0,
-              total: subtotal + impuestos,
-              paymentStatus: 'pendiente',
-            },
-          ]
+          const total = subtotal + impuestos
+          const newSession: TableSession = {
+            id: generateId(),
+            mesa,
+            activa: true,
+            orders: [order],
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + prev.config.tiempoExpiracionSesionMinutos * 60 * 1000),
+            deviceId: generateDeviceId(),
+            billStatus: 'abierta',
+            subtotal,
+            impuestos,
+            propina: 0,
+            descuento: 0,
+            total,
+            paymentStatus: 'pendiente',
+          }
+          tableSessions = [...tableSessions, newSession]
+          sessionSyncRef.data = { id: newSession.id, isNew: true, subtotal, impuestos, total, mesa, expiresAt: newSession.expiresAt, deviceId: newSession.deviceId }
         }
       }
-      
-      // Update menu item availability based on new inventory
+
       const menuItems = prev.menuItems.map(item => {
         const { canPrepare } = canPrepareItem(item, newIngredients)
         return { ...item, disponible: canPrepare }
       })
-      
+
       return {
         ...prev,
         orders: [...prev.orders, order],
@@ -862,7 +933,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    // Persist to Supabase (fire-and-forget, Realtime will reconcile)
+    // Sync session to Supabase
+    if (sessionSyncRef.data) {
+      const s = sessionSyncRef.data
+      if (s.isNew) {
+        supabase.from('table_sessions').insert({
+          id: s.id,
+          mesa: s.mesa,
+          activa: true,
+          bill_status: 'abierta',
+          subtotal: s.subtotal,
+          impuestos: s.impuestos,
+          propina: 0,
+          descuento: 0,
+          total: s.total,
+          payment_status: 'pendiente',
+          device_id: s.deviceId,
+          expires_at: s.expiresAt.toISOString(),
+        }).then(({ error }) => { if (error) console.error('Error creando sesión:', error) })
+      } else {
+        supabase.from('table_sessions').update({ subtotal: s.subtotal, impuestos: s.impuestos, total: s.total, bill_status: 'abierta', payment_status: 'pendiente' }).eq('id', s.id)
+          .then(({ error }) => { if (error) console.error('Error actualizando sesión:', error) })
+      }
+    }
+
+    // Persist order to Supabase
     supabase.from('orders').insert({
       id: order.id,
       numero: order.numero,
@@ -1058,7 +1153,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentTable: mesa,
       currentSessionId: session.id,
     }))
-    
+
+    supabase.from('table_sessions').insert({
+      id: session.id,
+      mesa: session.mesa,
+      activa: true,
+      bill_status: 'abierta',
+      subtotal: 0,
+      impuestos: 0,
+      propina: 0,
+      descuento: 0,
+      total: 0,
+      payment_status: 'pendiente',
+      device_id: session.deviceId,
+      expires_at: session.expiresAt.toISOString(),
+    }).then(({ error }) => {
+      if (error) console.error('Error guardando sesión:', error)
+    })
+
     return session
   }, [state.tableSessions, state.config.tiempoExpiracionSesionMinutos])
   
@@ -1069,29 +1181,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       return {
         ...prev,
-        // Remove orders from global active list
         orders: prev.orders.filter(o => o.mesa !== session.mesa),
-        // Mark session as closed but KEEP orders for historical records
         tableSessions: prev.tableSessions.map(s =>
-          s.id === sessionId
-            ? {
-                ...s,
-                activa: false,
-                billStatus: 'cerrada' as BillStatus,
-              }
-            : s
+          s.id === sessionId ? { ...s, activa: false, billStatus: 'cerrada' as BillStatus } : s
         ),
-        // Invalidate all QR tokens for this table so the next QR scan creates a new session
         qrTokens: prev.qrTokens.map(t =>
-          t.mesa === session.mesa && t.activo
-            ? { ...t, activo: false }
-            : t
+          t.mesa === session.mesa && t.activo ? { ...t, activo: false } : t
         ),
-        // Clear current context if it was this table
         currentTable: prev.currentTable === session.mesa ? null : prev.currentTable,
         currentSessionId: prev.currentSessionId === sessionId ? null : prev.currentSessionId,
         cart: prev.currentTable === session.mesa ? [] : prev.cart,
       }
+    })
+
+    supabase.from('table_sessions').update({ activa: false, bill_status: 'cerrada' }).eq('id', sessionId).then(({ error }) => {
+      if (error) console.error('Error cerrando sesión:', error)
     })
   }, [])
   
@@ -1113,14 +1217,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   
   // ============ BILL/PAYMENT ACTIONS ============
   const updateBillTotals = useCallback((sessionId: string) => {
+    let subtotal = 0, impuestos = 0, total = 0
     setState(prev => {
       const session = prev.tableSessions.find(s => s.id === sessionId)
       if (!session) return prev
-      
-      const subtotal = session.orders.reduce((sum, o) => sum + calculateOrderTotal(o.items), 0)
-      const impuestos = subtotal * (prev.config.impuestoPorcentaje / 100)
-      const total = subtotal + impuestos + session.propina - session.descuento
-      
+      subtotal = session.orders.reduce((sum, o) => sum + calculateOrderTotal(o.items), 0)
+      impuestos = subtotal * (prev.config.impuestoPorcentaje / 100)
+      total = subtotal + impuestos + session.propina - session.descuento
       return {
         ...prev,
         tableSessions: prev.tableSessions.map(s =>
@@ -1128,15 +1231,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ),
       }
     })
+    supabase.from('table_sessions').update({ subtotal, impuestos, total }).eq('id', sessionId).then(({ error }) => {
+      if (error) console.error('Error actualizando totales de sesión:', error)
+    })
   }, [])
   
   const applyDiscount = useCallback((sessionId: string, descuento: number, motivo: string) => {
+    let total = 0
     setState(prev => {
       const session = prev.tableSessions.find(s => s.id === sessionId)
       if (!session || session.billStatus === 'pagada') return prev
-      
-      const total = session.subtotal + session.impuestos + session.propina - descuento
-      
+      total = session.subtotal + session.impuestos + session.propina - descuento
       return {
         ...prev,
         tableSessions: prev.tableSessions.map(s =>
@@ -1144,15 +1249,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ),
       }
     })
+    supabase.from('table_sessions').update({ descuento, descuento_motivo: motivo, total }).eq('id', sessionId).then(({ error }) => {
+      if (error) console.error('Error aplicando descuento:', error)
+    })
   }, [])
-  
+
   const setTipAmount = useCallback((sessionId: string, propina: number) => {
+    let total = 0
     setState(prev => {
       const session = prev.tableSessions.find(s => s.id === sessionId)
       if (!session || session.billStatus === 'pagada') return prev
-      
-      const total = session.subtotal + session.impuestos + propina - session.descuento
-      
+      total = session.subtotal + session.impuestos + propina - session.descuento
       return {
         ...prev,
         tableSessions: prev.tableSessions.map(s =>
@@ -1160,8 +1267,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ),
       }
     })
+    supabase.from('table_sessions').update({ propina, total }).eq('id', sessionId).then(({ error }) => {
+      if (error) console.error('Error aplicando propina:', error)
+    })
   }, [])
-  
+
   const requestPayment = useCallback((sessionId: string, method: PaymentMethod) => {
     setState(prev => ({
       ...prev,
@@ -1169,32 +1279,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
         s.id === sessionId ? { ...s, paymentMethod: method, paymentStatus: 'solicitado' as PaymentStatus } : s
       ),
     }))
+    supabase.from('table_sessions').update({ payment_method: method, payment_status: 'solicitado' }).eq('id', sessionId).then(({ error }) => {
+      if (error) console.error('Error solicitando pago:', error)
+    })
   }, [])
-  
+
   const confirmPayment = useCallback((sessionId: string) => {
     setState(prev => {
       const session = prev.tableSessions.find(s => s.id === sessionId)
       if (!session) return prev
-
-      // Remove the session entirely so the table is fully freed
       return {
         ...prev,
         tableSessions: prev.tableSessions.filter(s => s.id !== sessionId),
-        // Invalidate all QR tokens for this table
         qrTokens: prev.qrTokens.map(t =>
-          t.mesa === session.mesa && t.activo
-            ? { ...t, activo: false }
-            : t
+          t.mesa === session.mesa && t.activo ? { ...t, activo: false } : t
         ),
-        // Remove active orders for this table from the global list
         orders: prev.orders.filter(o => o.mesa !== session.mesa),
-        // Dismiss any pending waiter calls for this table
         waiterCalls: prev.waiterCalls.filter(c => c.mesa !== session.mesa || c.atendido),
-        // Clear current context if it was this table
         currentTable: prev.currentTable === session.mesa ? null : prev.currentTable,
         currentSessionId: prev.currentSessionId === sessionId ? null : prev.currentSessionId,
         cart: prev.currentTable === session.mesa ? [] : prev.cart,
       }
+    })
+    // Mark session as paid in DB (keep for history, just mark it)
+    supabase.from('table_sessions').update({
+      activa: false,
+      bill_status: 'pagada',
+      payment_status: 'pagado',
+      paid_at: new Date().toISOString(),
+    }).eq('id', sessionId).then(({ error }) => {
+      if (error) console.error('Error confirmando pago:', error)
     })
   }, [])
 
@@ -1710,6 +1824,18 @@ const addMenuItem = useCallback(
       ...prev,
       config: { ...prev.config, ...updates },
     }))
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (updates.impuestoPorcentaje !== undefined) payload.impuesto_porcentaje = updates.impuestoPorcentaje
+    if (updates.propinaSugeridaPorcentaje !== undefined) payload.propina_sugerida_porcentaje = updates.propinaSugeridaPorcentaje
+    if (updates.tiempoExpiracionSesionMinutos !== undefined) payload.tiempo_expiracion_sesion_minutos = updates.tiempoExpiracionSesionMinutos
+    if (updates.zonasReparto !== undefined) payload.zonas_reparto = updates.zonasReparto
+    if (updates.horariosOperacion !== undefined) payload.horarios_operacion = updates.horariosOperacion
+    if (updates.metodospagoActivos !== undefined) payload.metodos_pago_activos = updates.metodospagoActivos
+    if (updates.sonidoNuevosPedidos !== undefined) payload.sonido_nuevos_pedidos = updates.sonidoNuevosPedidos
+    if (updates.notificacionesStockBajo !== undefined) payload.notificaciones_stock_bajo = updates.notificacionesStockBajo
+    supabase.from('app_config').update(payload).eq('id', 'default').then(({ error }) => {
+      if (error) console.error('Error guardando configuración:', error)
+    })
   }, [])
   
   // ============ AUDIT ============
@@ -1973,7 +2099,21 @@ const addMenuItem = useCallback(
       refunds: [...prev.refunds, refund],
       ingredients: newIngredients,
     }))
-    
+
+    supabase.from('refunds').insert({
+      id: refund.id,
+      order_id: refund.orderId,
+      session_id: refund.sessionId ?? null,
+      monto: refund.monto,
+      motivo: refund.motivo,
+      tipo: refund.tipo,
+      items_reembolsados: refund.itemsReembolsados ?? null,
+      inventario_revertido: refund.inventarioRevertido,
+      user_id: refund.userId,
+    }).then(({ error }) => {
+      if (error) console.error('Error guardando reembolso:', error)
+    })
+
     return refund
   }, [state.orders, state.ingredients, state.currentUser])
   
