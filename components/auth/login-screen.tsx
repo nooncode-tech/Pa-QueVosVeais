@@ -16,37 +16,45 @@ interface LoginScreenProps {
   onClienteAccess: () => void
 }
 
+// Credenciales de acceso rápido (demo)
+const QUICK_CREDENTIALS: Record<UserRole, { username: string; password: string }> = {
+  admin:    { username: 'admin',    password: 'admin123' },
+  mesero:   { username: 'mesero1',  password: 'mesero123' },
+  cocina_a: { username: 'cocina_a', password: 'cocina123' },
+  cocina_b: { username: 'cocina_b', password: 'cocina123' },
+}
+
 export function LoginScreen({ onLoginSuccess, onClienteAccess }: LoginScreenProps) {
-  const { login, users } = useApp()
+  const { login } = useApp()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setIsLoading(true)
-
-    // Simulate network delay
-    setTimeout(() => {
-      const user = login(username, password)
+    try {
+      const user = await login(username, password)
       if (user) {
         onLoginSuccess(user.role)
       } else {
         setError('Usuario o contraseña incorrectos')
       }
+    } catch {
+      setError('Error de conexión. Intenta de nuevo.')
+    } finally {
       setIsLoading(false)
-    }, 500)
+    }
   }
 
-  // Quick access for demo purposes
   const quickLogin = (role: UserRole) => {
-    const user = users.find(u => u.role === role && u.activo)
-    if (user) {
-      setUsername(user.username)
-      setPassword(user.password)
+    const creds = QUICK_CREDENTIALS[role]
+    if (creds) {
+      setUsername(creds.username)
+      setPassword(creds.password)
     }
   }
 

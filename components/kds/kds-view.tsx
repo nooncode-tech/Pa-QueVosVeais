@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle } from 'lucide-react'
+import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle, Volume2, VolumeX, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,13 +15,35 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { 
-  formatTime, 
-  getChannelLabel, 
-  getTimeDiff, 
-  type Order, 
-  type KitchenStatus 
+import {
+  getChannelLabel,
+  getTimeDiff,
+  type Order,
+  type KitchenStatus
 } from '@/lib/store'
+
+function playDing() {
+  try {
+    const ctx = new AudioContext()
+    const playNote = (freq: number, start: number, duration: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0, ctx.currentTime + start)
+      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + start + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration)
+      osc.start(ctx.currentTime + start)
+      osc.stop(ctx.currentTime + start + duration + 0.05)
+    }
+    playNote(880, 0, 0.15)    // A5
+    playNote(1318, 0.18, 0.25) // E6
+  } catch {
+    // AudioContext not available
+  }
+}
 
 interface KDSViewProps {
   kitchen: 'a' | 'b'
@@ -35,7 +57,11 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [activeTab, setActiveTab] = useState<KDSTab>('queue')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  
+  const [soundMuted, setSoundMuted] = useState(false)
+  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set())
+  const prevQueueIds = useRef<Set<string>>(new Set())
+  const isFirstLoad = useRef(true)
+
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000)
     return () => clearInterval(interval)
@@ -75,10 +101,43 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
     return status === 'listo'
   }))
   
+  // Detect new orders arriving in the queue
+  useEffect(() => {
+    const currentIds = new Set(queueOrders.map(o => o.id))
+
+    if (isFirstLoad.current) {
+      // On first load just record initial IDs without notifying
+      prevQueueIds.current = currentIds
+      isFirstLoad.current = false
+      return
+    }
+
+    const arrived: string[] = []
+    for (const id of currentIds) {
+      if (!prevQueueIds.current.has(id)) arrived.push(id)
+    }
+
+    if (arrived.length > 0) {
+      if (!soundMuted) playDing()
+      setNewOrderIds(prev => new Set([...prev, ...arrived]))
+      setActiveTab('queue')
+      // Remove NEW badge after 6 seconds
+      setTimeout(() => {
+        setNewOrderIds(prev => {
+          const next = new Set(prev)
+          arrived.forEach(id => next.delete(id))
+          return next
+        })
+      }, 6000)
+    }
+
+    prevQueueIds.current = currentIds
+  }, [queueOrders, soundMuted])
+
   const handleStartOrder = (orderId: string) => {
     updateKitchenStatus(orderId, kitchen, 'preparando')
   }
-  
+
   const handleCompleteOrder = (orderId: string) => {
     updateKitchenStatus(orderId, kitchen, 'listo')
   }
@@ -163,7 +222,17 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
             </div>
           </div>
           
-          <div className="text-right flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setSoundMuted(m => !m)}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-background/10 hover:bg-background/20 transition-colors"
+              title={soundMuted ? 'Activar sonido' : 'Silenciar'}
+            >
+              {soundMuted
+                ? <VolumeX className="h-4 w-4 text-background/60" />
+                : <Volume2 className="h-4 w-4 text-background" />
+              }
+            </button>
             <p className="text-sm font-mono font-bold">
               {currentTime.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
             </p>
@@ -217,10 +286,11 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
               onStart={activeTab === 'queue' ? () => handleStartOrder(order.id) : undefined}
               onComplete={activeTab === 'preparing' ? () => handleCompleteOrder(order.id) : undefined}
               priorityIndex={activeTab === 'queue' ? index : undefined}
+              isNew={newOrderIds.has(order.id)}
               large
             />
           ))}
-          
+
           {getActiveOrders().length === 0 && (
             <div className="text-center py-16">
               <div className="w-16 h-16 mx-auto rounded-full bg-secondary flex items-center justify-center mb-4">
@@ -254,32 +324,44 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
           {/* Logo / Brand */}
           <div className="flex h-20 items-center border-b border-background/10 px-4">
             {!sidebarCollapsed ? (
-              <div className="flex items-center gap-3 flex-1">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="relative h-12 w-12 shrink-0 bg-background/10 rounded-xl p-2">
-                  <Image 
-                    src="/logo.png" 
-                    alt="Pa' Que Vos Veais" 
+                  <Image
+                    src="/logo.png"
+                    alt="Pa' Que Vos Veais"
                     fill
-                    className="object-contain brightness-0 invert p-1" 
-                    priority 
+                    className="object-contain brightness-0 invert p-1"
+                    priority
                   />
                 </div>
-                <div className="flex flex-col min-w-0">
+                <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-base font-bold leading-tight truncate">{kitchenName}</span>
                   <span className="text-sm text-background/60 truncate">{kitchenDesc}</span>
                 </div>
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-background/10 hover:bg-background/20 transition-colors"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </button>
               </div>
             ) : (
-              <div className="flex w-full justify-center">
+              <div className="flex flex-col w-full items-center gap-2">
                 <div className="relative h-10 w-10 bg-background/10 rounded-lg p-1.5">
-                  <Image 
-                    src="/logo.png" 
-                    alt="Pa' Que Vos Veais" 
+                  <Image
+                    src="/logo.png"
+                    alt="Pa' Que Vos Veais"
                     fill
-                    className="object-contain brightness-0 invert" 
-                    priority 
+                    className="object-contain brightness-0 invert"
+                    priority
                   />
                 </div>
+                <button
+                  onClick={() => setSidebarCollapsed(false)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-background/10 hover:bg-background/20 transition-colors"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </button>
               </div>
             )}
           </div>
@@ -478,16 +560,18 @@ interface OrderCardProps {
   onComplete?: () => void
   priorityIndex?: number
   large?: boolean
+  isNew?: boolean
 }
 
-function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onComplete, priorityIndex, large }: OrderCardProps) {
+function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onComplete, priorityIndex, large, isNew }: OrderCardProps) {
   return (
     <Card className={cn(
-      "border-2 transition-all",
+      "border-2 transition-all relative",
       status === 'preparando' && "border-primary bg-primary/5",
       status === 'listo' && "border-success bg-success/5",
       status === 'en_cola' && timeBgColor,
-      status === 'en_cola' && !timeBgColor && "border-border"
+      status === 'en_cola' && !timeBgColor && "border-border",
+      isNew && "border-orange-500 animate-pulse shadow-lg shadow-orange-500/20"
     )}>
       <CardHeader className={cn("pb-2", large ? "p-4" : "p-2.5")}>
         <div className="flex items-start justify-between">
@@ -507,6 +591,14 @@ function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onCo
               <CardTitle className={cn(large ? "text-2xl" : "text-base", "font-bold")}>
                 #{order.numero}
               </CardTitle>
+              {isNew && (
+                <span className={cn(
+                  "bg-orange-500 text-white font-bold rounded px-1.5 animate-bounce",
+                  large ? "text-xs py-0.5" : "text-[9px] py-px"
+                )}>
+                  NUEVO
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5 mt-1">
               <Badge variant="outline" className={cn(large ? "text-xs h-5" : "text-[9px] h-3.5", "px-1.5")}>

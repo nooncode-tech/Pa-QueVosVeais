@@ -6,7 +6,7 @@ import { Search, ShoppingBag, ChevronLeft, Plus, SlidersHorizontal, AlertCircle 
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CATEGORIAS, formatPrice, type MenuItem, canPrepareItem } from '@/lib/store'
+import { formatPrice, type MenuItem, canPrepareItem } from '@/lib/store'
 
 interface MenuViewProps {
   mesa: number
@@ -29,7 +29,10 @@ export function MenuView({
   onExit,
   canOrder = true,
 }: MenuViewProps) {
-  const { menuItems, ingredients } = useApp()
+  const { menuItems, ingredients, categories } = useApp()
+  const activeCategories = [...categories]
+    .filter(c => c.activa)
+    .sort((a, b) => a.orden - b.orden)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   
@@ -41,11 +44,11 @@ export function MenuView({
   })
 
   // Group items by category when no category is selected
-  const itemsByCategory = selectedCategory 
+  const itemsByCategory = selectedCategory
     ? { [selectedCategory]: filteredItems }
-    : CATEGORIAS.reduce((acc, cat) => {
-        const items = filteredItems.filter(item => item.categoria === cat)
-        if (items.length > 0) acc[cat] = items
+    : activeCategories.reduce((acc, cat) => {
+        const items = filteredItems.filter(item => item.categoria === cat.id)
+        if (items.length > 0) acc[cat.id] = items
         return acc
       }, {} as Record<string, MenuItem[]>)
 
@@ -56,8 +59,9 @@ export function MenuView({
     return canPrepareItem(item, ingredients)
   }
 
-  const getCategoryEmoji = (categoria: string) => {
-    switch (categoria) {
+  const getCategoryEmoji = (categoriaId: string) => {
+    const nombre = categories.find(c => c.id === categoriaId)?.nombre ?? ''
+    switch (nombre) {
       case 'Tacos': return '🌮'
       case 'Antojitos': return '🫓'
       case 'Bebidas': return '🥤'
@@ -121,17 +125,17 @@ export function MenuView({
               </button>
             </div>
             <div className="flex gap-2 overflow-x-auto scrollbar-none">
-              {CATEGORIAS.map((cat) => (
+              {activeCategories.map((cat) => (
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
                   className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all whitespace-nowrap ${
-                    selectedCategory === cat 
-                      ? 'bg-foreground text-background' 
+                    selectedCategory === cat.id
+                      ? 'bg-foreground text-background'
                       : 'bg-secondary text-foreground'
                   }`}
                 >
-                  {cat}
+                  {cat.nombre}
                 </button>
               ))}
             </div>
@@ -162,7 +166,7 @@ export function MenuView({
           <div key={category} className="mb-4">
             <h2 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
               <span>{getCategoryEmoji(category)}</span>
-              {category}
+              {categories.find(c => c.id === category)?.nombre ?? category}
             </h2>
             <div className="space-y-2">
               {items.map((item) => {

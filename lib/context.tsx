@@ -92,8 +92,8 @@ interface AppState {
 
 interface AppContextType extends AppState {
   // Auth actions
-  login: (username: string, password: string) => User | null
-  logout: () => void
+  login: (username: string, password: string) => Promise<User | null>
+  logout: () => Promise<void>
   
   // Cart actions
   addToCart: (item: MenuItem, cantidad: number, notas?: string, extras?: MenuItem['extras']) => void
@@ -207,6 +207,57 @@ const AppContext = createContext<AppContextType | null>(null)
 
 const STORAGE_KEY = 'pqvv_app_state_v2'
 
+// ── DB row → app type mappers ─────────────────────────────────────────────────
+function mapMenuItem(row: Record<string, unknown>): MenuItem {
+  return {
+    id: row.id as string,
+    nombre: row.name as string,
+    descripcion: (row.description as string) ?? '',
+    precio: Number(row.price) || 0,
+    categoria: (row.category_id as string) ?? '',
+    cocina: (row.cocina as MenuItem['cocina']) ?? 'cocina_a',
+    disponible: (row.available as boolean) ?? true,
+    imagen: (row.image as string) ?? undefined,
+    orden: (row.orden as number) ?? 0,
+  }
+}
+
+function mapCategory(row: Record<string, unknown>): MenuCategory {
+  return {
+    id: row.id as string,
+    nombre: row.name as string,
+    activa: (row.activa as boolean) ?? true,
+    orden: (row.orden as number) ?? 0,
+  }
+}
+
+function mapOrder(row: Record<string, unknown>): Order {
+  return {
+    id: row.id as string,
+    numero: (row.numero as number) ?? 0,
+    canal: row.canal as Channel,
+    mesa: (row.mesa as number) ?? undefined,
+    items: (row.items as OrderItem[]) ?? [],
+    status: (row.status as OrderStatus) ?? 'recibido',
+    cocinaAStatus: (row.cocina_a_status as KitchenStatus) ?? 'en_cola',
+    cocinaBStatus: (row.cocina_b_status as KitchenStatus) ?? 'en_cola',
+    nombreCliente: (row.nombre_cliente as string) ?? undefined,
+    telefono: (row.telefono as string) ?? undefined,
+    direccion: (row.direccion as string) ?? undefined,
+    zonaReparto: (row.zona_reparto as string) ?? undefined,
+    claimedByKitchen: (row.claimed_by_kitchen as 'cocina_a' | 'cocina_b') ?? undefined,
+    cancelado: (row.cancelado as boolean) ?? false,
+    cancelReason: (row.cancel_reason as CancelReason) ?? undefined,
+    cancelMotivo: (row.cancel_motivo as string) ?? undefined,
+    canceladoPor: (row.cancelado_por as string) ?? undefined,
+    tiempoInicioPreparacion: row.tiempo_inicio_preparacion ? new Date(row.tiempo_inicio_preparacion as string) : undefined,
+    tiempoFinPreparacion: row.tiempo_fin_preparacion ? new Date(row.tiempo_fin_preparacion as string) : undefined,
+    canceladoAt: row.cancelado_at ? new Date(row.cancelado_at as string) : undefined,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  }
+}
+
 function loadState(): AppState {
   if (typeof window === 'undefined') {
     return getDefaultState()
@@ -265,7 +316,7 @@ function loadState(): AppState {
           createdAt: new Date(r.createdAt),
         })) || [],
         deliveryZones: parsed.deliveryZones || DEFAULT_DELIVERY_ZONES,
-        categories: parsed.categories || [],
+        categories: (parsed.categories && parsed.categories.length > 0) ? parsed.categories : DEFAULT_CATEGORIES,
         tables: parsed.tables?.map((t: TableConfig) => ({
           ...t,
           createdAt: new Date(t.createdAt),
@@ -318,7 +369,7 @@ function getDefaultState(): AppState {
     qrTokens: [],
     refunds: [],
     deliveryZones: DEFAULT_DELIVERY_ZONES,
-    categories: [],
+    categories: DEFAULT_CATEGORIES,
     tables: DEFAULT_TABLES,
     cart: [],
     currentTable: null,
@@ -338,68 +389,162 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(loaded)
     setIsHydrated(true)
   }, [])
+
+  // Restore Supabase session on mount + listen for auth changes
+  useEffect(() => {
+    const restoreProfile = async (userId: string) => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (profile) {
+        const user: User = {
+          id: profile.id,
+          username: profile.username,
+          nombre: profile.nombre,
+          role: profile.role as UserRole,
+          activo: profile.activo,
+          createdAt: new Date(profile.created_at),
+        }
+        setState(prev => ({ ...prev, currentUser: user }))
+      }
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) restoreProfile(session.user.id)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        restoreProfile(session.user.id)
+      } else {
+        setState(prev => ({ ...prev, currentUser: null }))
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
   
   useEffect(() => {
 
   const cargarMenu = async () => {
-    const { data, error } = await supabase
-      .from("menu_items")
-      .select("*")
-
-    if (error) {
-      console.error(error)
-      return
-    }
-
-    if (data) {
-      const items = data.map(item => ({
-        id: item.id,
-        nombre: item.name,
-        descripcion: item.description,
-        precio: Number(item.price) || 0,
-        categoria: item.category_id,
-        cocina: "cocina_a",
-        disponible: item.available ?? true,
-        imagen: item.image ?? undefined
-      }))
-
-      setState(prev => ({
-        ...prev,
-        menuItems: items
-      }))
-    }
+    const { data, error } = await supabase.from("menu_items").select("*")
+    if (error) { console.error("Error cargando menu:", error); return }
+    if (data) setState(prev => ({ ...prev, menuItems: data.map(mapMenuItem) }))
   }
 
   const cargarCategorias = async () => {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("*")
-      .order("name")
-
-    if (error) {
-      console.error("Error cargando categorias:", error)
-      return
-    }
-
+    const { data, error } = await supabase.from("categories").select("*").order("orden")
+    if (error) { console.error("Error cargando categorias:", error); return }
     if (data) {
-      const categorias = data.map(c => ({
-        id: c.id,
-        nombre: c.name,
-        activa: true,
-        orden: 0
-      }))
-
-      setState(prev => ({
-        ...prev,
-        categories: categorias
-      }))
+      setState(prev => {
+        const existingMap = new Map(prev.categories.map(c => [c.id, c]))
+        const categorias = data.map((row, idx) => {
+          const existing = existingMap.get(row.id as string)
+          return mapCategory({ ...row, orden: existing?.orden ?? row.orden ?? idx + 1 })
+        }).sort((a, b) => a.orden - b.orden)
+        return { ...prev, categories: categorias }
+      })
     }
+  }
+
+  const cargarOrders = async () => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .not('status', 'in', '("entregado","cancelado")')
+      .order('created_at')
+    if (error) { console.error('Error cargando pedidos:', error); return }
+    if (data) setState(prev => ({ ...prev, orders: data.map(mapOrder) }))
   }
 
   cargarMenu()
   cargarCategorias()
+  cargarOrders()
 
 }, [])
+
+  // ── Supabase Realtime ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('db-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'menu_items' }, (payload) => {
+        const item = mapMenuItem(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          menuItems: prev.menuItems.some(i => i.id === item.id)
+            ? prev.menuItems.map(i => i.id === item.id ? item : i)
+            : [...prev.menuItems, item],
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_items' }, (payload) => {
+        const item = mapMenuItem(payload.new as Record<string, unknown>)
+        setState(prev => ({ ...prev, menuItems: prev.menuItems.map(i => i.id === item.id ? item : i) }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'menu_items' }, (payload) => {
+        setState(prev => ({ ...prev, menuItems: prev.menuItems.filter(i => i.id !== (payload.old as Record<string, unknown>).id) }))
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'categories' }, (payload) => {
+        const cat = mapCategory(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          categories: prev.categories.some(c => c.id === cat.id)
+            ? prev.categories
+            : [...prev.categories, cat].sort((a, b) => a.orden - b.orden),
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'categories' }, (payload) => {
+        const cat = mapCategory(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          categories: prev.categories.map(c => c.id === cat.id ? cat : c),
+        }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'categories' }, (payload) => {
+        setState(prev => ({
+          ...prev,
+          categories: prev.categories.filter(c => c.id !== (payload.old as Record<string, unknown>).id),
+        }))
+      })
+      // ── Orders Realtime ─────────────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        const order = mapOrder(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          orders: prev.orders.some(o => o.id === order.id)
+            ? prev.orders.map(o => o.id === order.id ? order : o)
+            : [...prev.orders, order],
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const order = mapOrder(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          orders: prev.orders.map(o => o.id === order.id ? order : o),
+          // Sync inside table sessions too
+          tableSessions: prev.tableSessions.map(session => ({
+            ...session,
+            orders: session.orders.map(o => o.id === order.id ? order : o),
+          })),
+        }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, (payload) => {
+        const deletedId = (payload.old as Record<string, unknown>).id as string
+        setState(prev => ({
+          ...prev,
+          orders: prev.orders.filter(o => o.id !== deletedId),
+          tableSessions: prev.tableSessions.map(session => ({
+            ...session,
+            orders: session.orders.filter(o => o.id !== deletedId),
+          })),
+        }))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   // Save state to localStorage after hydration
   useEffect(() => {
@@ -462,16 +607,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isHydrated])
   
   // ============ AUTH ACTIONS ============
-  const login = useCallback((username: string, password: string): User | null => {
-    const user = state.users.find(u => u.username === username && u.password === password && u.activo)
-    if (user) {
-      setState(prev => ({ ...prev, currentUser: user }))
-      return user
+  const login = useCallback(async (username: string, password: string): Promise<User | null> => {
+    const email = `${username}@pqvv.local`
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error || !data.user) return null
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single()
+
+    if (!profile || !profile.activo) {
+      await supabase.auth.signOut()
+      return null
     }
-    return null
-  }, [state.users])
-  
-  const logout = useCallback(() => {
+
+    const user: User = {
+      id: profile.id,
+      username: profile.username,
+      nombre: profile.nombre,
+      role: profile.role as UserRole,
+      activo: profile.activo,
+      createdAt: new Date(profile.created_at),
+    }
+
+    setState(prev => ({ ...prev, currentUser: user }))
+    return user
+  }, [])
+
+  const logout = useCallback(async (): Promise<void> => {
+    await supabase.auth.signOut()
     setState(prev => ({ ...prev, currentUser: null, currentTable: null, currentSessionId: null, cart: [] }))
   }, [])
   
@@ -647,50 +813,80 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cart: [],
       }
     })
-    
+
+    // Persist to Supabase (fire-and-forget, Realtime will reconcile)
+    supabase.from('orders').insert({
+      id: order.id,
+      numero: order.numero,
+      canal: order.canal,
+      mesa: order.mesa ?? null,
+      items: order.items,
+      status: order.status,
+      cocina_a_status: order.cocinaAStatus,
+      cocina_b_status: order.cocinaBStatus,
+      nombre_cliente: order.nombreCliente ?? null,
+      telefono: order.telefono ?? null,
+      direccion: order.direccion ?? null,
+      zona_reparto: order.zonaReparto ?? null,
+      created_at: order.createdAt.toISOString(),
+      updated_at: order.updatedAt.toISOString(),
+    }).then(({ error }) => {
+      if (error) console.error('Error guardando pedido en Supabase:', error)
+    })
+
     return order
   }, [state.cart, state.ingredients, state.config.impuestoPorcentaje, state.config.tiempoExpiracionSesionMinutos])
   
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
+    const now = new Date()
     setState(prev => {
       const updatedOrders = prev.orders.map(order => {
         if (order.id !== orderId) return order
-        
-        const updates: Partial<Order> = { status, updatedAt: new Date() }
-        
+
+        const updates: Partial<Order> = { status, updatedAt: now }
+
         if (status === 'preparando' && !order.tiempoInicioPreparacion) {
-          updates.tiempoInicioPreparacion = new Date()
+          updates.tiempoInicioPreparacion = now
         }
         if ((status === 'listo' || status === 'entregado') && !order.tiempoFinPreparacion) {
-          updates.tiempoFinPreparacion = new Date()
+          updates.tiempoFinPreparacion = now
         }
-        
+
         return { ...order, ...updates }
       })
 
-      // 🔥 SYNC session.orders with updated orders
+      // Sync session.orders with updated orders
       const updatedSessions = prev.tableSessions.map(session => ({
         ...session,
         orders: session.orders.map(o => updatedOrders.find(uo => uo.id === o.id) || o),
       }))
-      
+
       return {
         ...prev,
         orders: updatedOrders,
         tableSessions: updatedSessions,
       }
     })
+
+    // Persist to Supabase
+    const payload: Record<string, unknown> = { status, updated_at: now.toISOString() }
+    if (status === 'preparando') payload.tiempo_inicio_preparacion = now.toISOString()
+    if (status === 'listo' || status === 'entregado') payload.tiempo_fin_preparacion = now.toISOString()
+    supabase.from('orders').update(payload).eq('id', orderId).then(({ error }) => {
+      if (error) console.error('Error actualizando status de pedido:', error)
+    })
   }, [])
   
   const updateKitchenStatus = useCallback((orderId: string, kitchen: 'a' | 'b', status: KitchenStatus) => {
+    // Capture the computed payload from inside the updater so we can persist it to Supabase
+    let supabasePayload: Record<string, unknown> | null = null
+
     setState(prev => {
       const updatedOrders = prev.orders.map(order => {
         if (order.id !== orderId) return order
-        
-        const updates: Partial<Order> = {
-          updatedAt: new Date(),
-        }
-        
+
+        const updates: Partial<Order> = { updatedAt: new Date() }
+
         if (kitchen === 'a') {
           updates.cocinaAStatus = status
         } else {
@@ -704,9 +900,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (hasAmbasItems) {
             const otherKitchenKey = kitchen === 'a' ? 'cocina_b' : 'cocina_a'
             const otherHasExclusiveItems = order.items.some(i => i.menuItem.cocina === otherKitchenKey)
-            
+
             if (!otherHasExclusiveItems) {
-              // All items relevant to the other kitchen are "ambas" - claim exclusively
               if (kitchen === 'a' && order.cocinaBStatus === 'en_cola') {
                 updates.cocinaBStatus = 'listo'
                 updates.claimedByKitchen = 'cocina_a'
@@ -717,46 +912,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
           }
         }
-        
+
         if (status === 'preparando' && !order.tiempoInicioPreparacion) {
           updates.tiempoInicioPreparacion = new Date()
         }
-        
+
         // Update overall status based on kitchen statuses
         const newCocinaA = updates.cocinaAStatus ?? (kitchen === 'a' ? status : order.cocinaAStatus)
         const newCocinaB = updates.cocinaBStatus ?? (kitchen === 'b' ? status : order.cocinaBStatus)
-        
-        // Check if any items need this kitchen
+
         const needsA = order.items.some(i => i.menuItem.cocina === 'cocina_a' || i.menuItem.cocina === 'ambas')
         const needsB = order.items.some(i => i.menuItem.cocina === 'cocina_b' || i.menuItem.cocina === 'ambas')
-        
+
         const aReady = !needsA || newCocinaA === 'listo'
         const bReady = !needsB || newCocinaB === 'listo'
-        
+
         if (aReady && bReady) {
           updates.status = 'listo'
-          if (!order.tiempoFinPreparacion) {
-            updates.tiempoFinPreparacion = new Date()
-          }
+          if (!order.tiempoFinPreparacion) updates.tiempoFinPreparacion = new Date()
         } else if (newCocinaA === 'preparando' || newCocinaB === 'preparando') {
           updates.status = 'preparando'
         }
-        
-        return { ...order, ...updates }
+
+        const newOrder = { ...order, ...updates }
+
+        // Build Supabase payload from computed result
+        supabasePayload = {
+          cocina_a_status: newOrder.cocinaAStatus,
+          cocina_b_status: newOrder.cocinaBStatus,
+          status: newOrder.status,
+          updated_at: newOrder.updatedAt.toISOString(),
+        }
+        if (newOrder.claimedByKitchen) supabasePayload.claimed_by_kitchen = newOrder.claimedByKitchen
+        if (newOrder.tiempoInicioPreparacion) supabasePayload.tiempo_inicio_preparacion = newOrder.tiempoInicioPreparacion.toISOString()
+        if (newOrder.tiempoFinPreparacion) supabasePayload.tiempo_fin_preparacion = newOrder.tiempoFinPreparacion.toISOString()
+
+        return newOrder
       })
-      
-      // 🔥 SYNC session.orders with updated orders
+
+      // Sync session.orders with updated orders
       const updatedSessions = prev.tableSessions.map(session => ({
         ...session,
         orders: session.orders.map(o => updatedOrders.find(uo => uo.id === o.id) || o),
       }))
-      
-      return { 
-        ...prev, 
+
+      return {
+        ...prev,
         orders: updatedOrders,
         tableSessions: updatedSessions,
       }
     })
+
+    // Persist to Supabase (payload was captured synchronously inside the updater)
+    if (supabasePayload) {
+      supabase.from('orders').update(supabasePayload).eq('id', orderId).then(({ error }) => {
+        if (error) console.error('Error actualizando cocina status:', error)
+      })
+    }
   }, [])
   
   // ============ TABLE SESSION ACTIONS ============
@@ -1212,22 +1424,33 @@ const addMenuItem = useCallback(
   }
 
   if (data) {
-    const nueva: MenuCategory = {
-      id: data[0].id,
-      nombre: data[0].name,
-      activa: true,
-      orden: state.categories.length + 1
-    }
-
-    setState(prev => ({
-      ...prev,
-      categories: [...prev.categories, nueva]
-    }))
+    setState(prev => {
+      const nueva: MenuCategory = {
+        id: data[0].id,
+        nombre: data[0].name,
+        activa: true,
+        orden: prev.categories.length + 1,
+      }
+      return { ...prev, categories: [...prev.categories, nueva] }
+    })
   }
 
-}, [state.categories])
+}, [])
   
-  const updateCategory = useCallback((categoryId: string, updates: Partial<MenuCategory>) => {
+  const updateCategory = useCallback(async (categoryId: string, updates: Partial<MenuCategory>) => {
+    // Persist name changes to Supabase (only 'name' column exists in DB)
+    if (updates.nombre !== undefined) {
+      const { error } = await supabase
+        .from("categories")
+        .update({ name: updates.nombre })
+        .eq("id", categoryId)
+
+      if (error) {
+        console.error("Error actualizando categoría:", error)
+        return
+      }
+    }
+
     setState(prev => ({
       ...prev,
       categories: prev.categories.map(cat =>
@@ -1454,12 +1677,12 @@ const addMenuItem = useCallback(
       const updatedSessions = prev.tableSessions.map(session => {
         const filteredOrders = session.orders.filter(o => o.id !== orderId)
         if (filteredOrders.length === session.orders.length) return session
-        
+
         const subtotal = filteredOrders.reduce(
           (sum, o) => sum + calculateOrderTotal(o.items), 0
         )
         const impuestos = subtotal * (prev.config.impuestoPorcentaje / 100)
-        
+
         return {
           ...session,
           orders: filteredOrders,
@@ -1483,7 +1706,12 @@ const addMenuItem = useCallback(
         menuItems,
       }
     })
-    
+
+    // Persist to Supabase
+    supabase.from('orders').delete().eq('id', orderId).then(({ error }) => {
+      if (error) console.error('Error eliminando pedido en Supabase:', error)
+    })
+
     return true
   }, [state.orders, state.ingredients])
   

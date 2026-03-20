@@ -16,7 +16,7 @@ interface ItemDetailViewProps {
 }
 
 export function ItemDetailView({ item, onBack, onAddToCart, cartItemCount = 0, canOrder = true }: ItemDetailViewProps) {
-  const { addToCart } = useApp()
+  const { addToCart, categories } = useApp()
   const [cantidad, setCantidad] = useState(1)
   const [notas, setNotas] = useState('')
   const [selectedExtras, setSelectedExtras] = useState<Extra[]>([])
@@ -52,7 +52,10 @@ export function ItemDetailView({ item, onBack, onAddToCart, cartItemCount = 0, c
             />
           ) : (
             <span className="text-7xl">
-              {item.categoria === 'Tacos' ? '🌮' : item.categoria === 'Antojitos' ? '🫓' : item.categoria === 'Bebidas' ? '🥤' : item.categoria === 'Postres' ? '🍮' : '🍽️'}
+              {(() => {
+                const nombre = categories.find(c => c.id === item.categoria)?.nombre ?? ''
+                return nombre === 'Tacos' ? '🌮' : nombre === 'Antojitos' ? '🫓' : nombre === 'Bebidas' ? '🥤' : nombre === 'Postres' ? '🍮' : '🍽️'
+              })()}
             </span>
           )}
         </div>

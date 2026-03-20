@@ -16,7 +16,6 @@ export type IngredientUnit = 'kg' | 'g' | 'l' | 'ml' | 'unidad' | 'porcion'
 export interface User {
   id: string
   username: string
-  password: string // En producción sería hash
   nombre: string
   role: UserRole
   activo: boolean
@@ -260,7 +259,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Taco al Pastor',
     descripcion: 'Cerdo marinado con achiote, piña, cebolla y cilantro',
     precio: 35,
-    categoria: 'Tacos',
+    categoria: 'cat-1',
     cocina: 'cocina_a',
     disponible: true,
     orden: 1,
@@ -281,7 +280,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Taco de Bistec',
     descripcion: 'Bistec de res a la plancha con cebolla y cilantro',
     precio: 40,
-    categoria: 'Tacos',
+    categoria: 'cat-1',
     cocina: 'cocina_a',
     disponible: true,
     orden: 2,
@@ -301,7 +300,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Taco de Carnitas',
     descripcion: 'Cerdo confitado al estilo Michoacán',
     precio: 38,
-    categoria: 'Tacos',
+    categoria: 'cat-1',
     cocina: 'cocina_a',
     disponible: true,
     orden: 3,
@@ -315,7 +314,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Taco de Suadero',
     descripcion: 'Carne de res suave y jugosa',
     precio: 38,
-    categoria: 'Tacos',
+    categoria: 'cat-1',
     cocina: 'cocina_a',
     disponible: true,
     orden: 4,
@@ -329,7 +328,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Taco de Chorizo',
     descripcion: 'Chorizo artesanal con papas',
     precio: 35,
-    categoria: 'Tacos',
+    categoria: 'cat-1',
     cocina: 'cocina_a',
     disponible: true,
     orden: 5,
@@ -345,7 +344,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Quesadilla de Flor de Calabaza',
     descripcion: 'Tortilla de maíz con queso Oaxaca y flor de calabaza',
     precio: 55,
-    categoria: 'Antojitos',
+    categoria: 'cat-2',
     cocina: 'cocina_b',
     disponible: true,
     orden: 1,
@@ -360,7 +359,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Quesadilla de Huitlacoche',
     descripcion: 'Tortilla de maíz con queso Oaxaca y huitlacoche',
     precio: 60,
-    categoria: 'Antojitos',
+    categoria: 'cat-2',
     cocina: 'cocina_b',
     disponible: true,
     orden: 2,
@@ -375,7 +374,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Sope de Chorizo',
     descripcion: 'Base de masa con frijoles, chorizo, crema y queso',
     precio: 50,
-    categoria: 'Antojitos',
+    categoria: 'cat-2',
     cocina: 'cocina_b',
     disponible: true,
     orden: 3,
@@ -392,7 +391,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Sope de Tinga',
     descripcion: 'Base de masa con frijoles, tinga de pollo, crema y queso',
     precio: 50,
-    categoria: 'Antojitos',
+    categoria: 'cat-2',
     cocina: 'cocina_b',
     disponible: true,
     orden: 4,
@@ -408,7 +407,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Tlacoyos de Frijol',
     descripcion: 'Masa rellena de frijol negro con nopales y queso',
     precio: 45,
-    categoria: 'Antojitos',
+    categoria: 'cat-2',
     cocina: 'cocina_b',
     disponible: true,
     orden: 5,
@@ -424,7 +423,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Gorditas de Chicharrón',
     descripcion: 'Masa de maíz rellena de chicharrón prensado',
     precio: 48,
-    categoria: 'Antojitos',
+    categoria: 'cat-2',
     cocina: 'cocina_b',
     disponible: true,
     orden: 6,
@@ -439,7 +438,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Agua de Horchata',
     descripcion: 'Bebida tradicional de arroz con canela',
     precio: 35,
-    categoria: 'Bebidas',
+    categoria: 'cat-3',
     cocina: 'ambas',
     disponible: true,
     orden: 1,
@@ -449,7 +448,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Agua de Jamaica',
     descripcion: 'Infusión de flor de jamaica',
     precio: 35,
-    categoria: 'Bebidas',
+    categoria: 'cat-3',
     cocina: 'ambas',
     disponible: true,
     orden: 2,
@@ -459,7 +458,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Agua de Tamarindo',
     descripcion: 'Bebida de tamarindo natural',
     precio: 35,
-    categoria: 'Bebidas',
+    categoria: 'cat-3',
     cocina: 'ambas',
     disponible: true,
     orden: 3,
@@ -469,7 +468,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Refresco',
     descripcion: 'Coca-Cola, Sprite, Fanta',
     precio: 30,
-    categoria: 'Bebidas',
+    categoria: 'cat-3',
     cocina: 'ambas',
     disponible: true,
     orden: 4,
@@ -479,7 +478,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Cerveza',
     descripcion: 'Corona, Victoria, Modelo',
     precio: 45,
-    categoria: 'Bebidas',
+    categoria: 'cat-3',
     cocina: 'ambas',
     disponible: true,
     orden: 5,
@@ -490,7 +489,7 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Flan Napolitano',
     descripcion: 'Flan casero con caramelo',
     precio: 45,
-    categoria: 'Postres',
+    categoria: 'cat-4',
     cocina: 'cocina_b',
     disponible: true,
     orden: 1,
@@ -500,15 +499,13 @@ export const MENU_ITEMS: MenuItem[] = [
     nombre: 'Churros con Chocolate',
     descripcion: '3 churros con chocolate caliente',
     precio: 50,
-    categoria: 'Postres',
+    categoria: 'cat-4',
     cocina: 'cocina_b',
     disponible: true,
     orden: 2,
   },
 ]
 
-
-export const CATEGORIAS = ['Tacos', 'Antojitos', 'Bebidas', 'Postres']
 
 // ============ CATEGORIAS EDITABLES ============
 export interface MenuCategory {
@@ -569,13 +566,9 @@ export const DEFAULT_INGREDIENTS: Ingredient[] = [
 ]
 
 // Usuarios por defecto (simulados)
-export const DEFAULT_USERS: User[] = [
-  { id: 'user-admin', username: 'admin', password: 'admin123', nombre: 'Administrador', role: 'admin', activo: true, createdAt: new Date() },
-  { id: 'user-mesero1', username: 'mesero1', password: 'mesero123', nombre: 'Juan Pérez', role: 'mesero', activo: true, createdAt: new Date() },
-  { id: 'user-mesero2', username: 'mesero2', password: 'mesero123', nombre: 'María García', role: 'mesero', activo: true, createdAt: new Date() },
-  { id: 'user-cocina-a', username: 'cocina_a', password: 'cocina123', nombre: 'Cocina A', role: 'cocina_a', activo: true, createdAt: new Date() },
-  { id: 'user-cocina-b', username: 'cocina_b', password: 'cocina123', nombre: 'Cocina B', role: 'cocina_b', activo: true, createdAt: new Date() },
-]
+// Users are now managed in Supabase Auth + profiles table.
+// This array is used as a fallback only (no passwords stored).
+export const DEFAULT_USERS: User[] = []
 
 // Recompensas por defecto
 export const DEFAULT_REWARDS: Reward[] = [
