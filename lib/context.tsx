@@ -192,7 +192,7 @@ interface AppContextType extends AppState {
 
 const AppContext = createContext<AppContextType | null>(null)
 
-const STORAGE_KEY = 'pqvv_app_state_v2'
+const STORAGE_KEY = 'pqvv_app_state_v3'
 
 // ── DB row → app type mappers ─────────────────────────────────────────────────
 function mapMenuItem(row: Record<string, unknown>): MenuItem {
