@@ -3,11 +3,20 @@
 -- Ejecutar en: Supabase Dashboard → SQL Editor → New Query
 -- ============================================================
 
--- ── Habilitar Realtime en tablas que aún no están ──────────────────────────────
-ALTER PUBLICATION supabase_realtime ADD TABLE public.menu_items;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.categories;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.app_config;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.refunds;
+-- ── Habilitar Realtime (seguro si ya existe) ───────────────────────────────────
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['menu_items','categories','app_config','refunds','tables_config']
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    END IF;
+  END LOOP;
+END $$;
 
 -- ── Configuración de mesas (persistente) ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.tables_config (
@@ -28,8 +37,6 @@ CREATE POLICY "Autenticados pueden leer mesas"
 CREATE POLICY "Admin puede gestionar mesas"
   ON public.tables_config FOR ALL TO authenticated
   USING (public.get_my_role() = 'admin');
-
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tables_config;
 
 -- 12 mesas por defecto
 INSERT INTO public.tables_config (id, numero, nombre, capacidad, activa)
