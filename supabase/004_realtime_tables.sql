@@ -3,11 +3,11 @@
 -- Ejecutar en: Supabase Dashboard → SQL Editor → New Query
 -- ============================================================
 
--- ── Habilitar Realtime (seguro si ya existe) ───────────────────────────────────
+-- ── Habilitar Realtime en tablas existentes (seguro si ya existe) ──────────────
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['menu_items','categories','app_config','refunds','tables_config']
+  FOREACH t IN ARRAY ARRAY['menu_items','categories','app_config','refunds']
   LOOP
     IF NOT EXISTS (
       SELECT 1 FROM pg_publication_tables
@@ -43,3 +43,14 @@ INSERT INTO public.tables_config (id, numero, nombre, capacidad, activa)
 SELECT 'table-' || i, i, 'Mesa ' || i, 4, true
 FROM generate_series(1, 12) AS t(i)
 ON CONFLICT (id) DO NOTHING;
+
+-- ── Habilitar Realtime para tables_config (después de crearla) ─────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'tables_config'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.tables_config;
+  END IF;
+END $$;
