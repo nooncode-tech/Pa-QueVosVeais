@@ -245,6 +245,53 @@ function mapOrder(row: Record<string, unknown>): Order {
   }
 }
 
+function mapSession(row: Record<string, unknown>): Omit<TableSession, 'orders'> {
+  return {
+    id: row.id as string,
+    mesa: row.mesa as number,
+    activa: row.activa as boolean,
+    createdAt: new Date(row.created_at as string),
+    expiresAt: row.expires_at ? new Date(row.expires_at as string) : new Date(Date.now() + 3 * 60 * 60 * 1000),
+    deviceId: (row.device_id as string) ?? '',
+    billStatus: row.bill_status as BillStatus,
+    subtotal: Number(row.subtotal) ?? 0,
+    impuestos: Number(row.impuestos) ?? 0,
+    propina: Number(row.propina) ?? 0,
+    descuento: Number(row.descuento) ?? 0,
+    descuentoMotivo: (row.descuento_motivo as string) ?? undefined,
+    total: Number(row.total) ?? 0,
+    paymentMethod: (row.payment_method as PaymentMethod) ?? undefined,
+    paymentStatus: row.payment_status as PaymentStatus,
+    paidAt: row.paid_at ? new Date(row.paid_at as string) : undefined,
+  }
+}
+
+function mapIngredient(row: Record<string, unknown>): Ingredient {
+  return {
+    id: row.id as string,
+    nombre: row.nombre as string,
+    categoria: row.categoria as string,
+    unidad: row.unidad as Ingredient['unidad'],
+    stockActual: Number(row.stock_actual) ?? 0,
+    stockMinimo: Number(row.stock_minimo) ?? 0,
+    cantidadMaxima: Number(row.cantidad_maxima) ?? 0,
+    costoUnitario: Number(row.costo_unitario) ?? 0,
+    activo: row.activo as boolean,
+  }
+}
+
+function mapTableConfig(row: Record<string, unknown>): TableConfig {
+  return {
+    id: row.id as string,
+    numero: row.numero as number,
+    nombre: (row.nombre as string) ?? undefined,
+    capacidad: row.capacidad as number,
+    activa: row.activa as boolean,
+    ubicacion: (row.ubicacion as string) ?? undefined,
+    createdAt: new Date(row.created_at as string),
+  }
+}
+
 function loadState(): AppState {
   if (typeof window === 'undefined') {
     return getDefaultState()
@@ -467,18 +514,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.from('ingredients').select('*').eq('activo', true).order('nombre')
     if (error) { console.error('Error cargando ingredientes:', error); return }
     if (data && data.length > 0) {
-      const ingredientes: Ingredient[] = data.map(row => ({
-        id: row.id as string,
-        nombre: row.nombre as string,
-        categoria: row.categoria as string,
-        unidad: row.unidad as Ingredient['unidad'],
-        stockActual: Number(row.stock_actual) ?? 0,
-        stockMinimo: Number(row.stock_minimo) ?? 0,
-        cantidadMaxima: Number(row.cantidad_maxima) ?? 0,
-        costoUnitario: Number(row.costo_unitario) ?? 0,
-        activo: row.activo as boolean,
-      }))
-      setState(prev => ({ ...prev, ingredients: ingredientes }))
+      setState(prev => ({ ...prev, ingredients: data.map(mapIngredient) }))
     }
   }
 
@@ -506,32 +542,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const cargarSesiones = async () => {
-    const { data, error } = await supabase
-      .from('table_sessions')
-      .select('*')
-      .eq('activa', true)
+    const { data, error } = await supabase.from('table_sessions').select('*').eq('activa', true)
     if (error) { console.error('Error cargando sesiones:', error); return }
     if (data && data.length > 0) {
-      const sesiones: TableSession[] = data.map(row => ({
-        id: row.id as string,
-        mesa: row.mesa as number,
-        activa: row.activa as boolean,
-        orders: [],
-        createdAt: new Date(row.created_at as string),
-        expiresAt: row.expires_at ? new Date(row.expires_at as string) : new Date(Date.now() + 3 * 60 * 60 * 1000),
-        deviceId: row.device_id as string ?? '',
-        billStatus: row.bill_status as BillStatus,
-        subtotal: Number(row.subtotal) ?? 0,
-        impuestos: Number(row.impuestos) ?? 0,
-        propina: Number(row.propina) ?? 0,
-        descuento: Number(row.descuento) ?? 0,
-        descuentoMotivo: row.descuento_motivo as string | undefined,
-        total: Number(row.total) ?? 0,
-        paymentMethod: row.payment_method as PaymentMethod | undefined,
-        paymentStatus: row.payment_status as PaymentStatus,
-        paidAt: row.paid_at ? new Date(row.paid_at as string) : undefined,
-      }))
+      const sesiones: TableSession[] = data.map(row => ({ ...mapSession(row), orders: [] }))
       setState(prev => ({ ...prev, tableSessions: sesiones }))
+    }
+  }
+
+  const cargarTables = async () => {
+    const { data, error } = await supabase.from('tables_config').select('*').order('numero')
+    if (error) { console.error('Error cargando mesas:', error); return }
+    if (data && data.length > 0) {
+      setState(prev => ({ ...prev, tables: data.map(mapTableConfig) }))
     }
   }
 
@@ -588,6 +611,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   cargarSesiones()
   cargarReembolsos()
   cargarConfig()
+  cargarTables()
 
 }, [])
 
@@ -665,6 +689,87 @@ export function AppProvider({ children }: { children: ReactNode }) {
             orders: session.orders.filter(o => o.id !== deletedId),
           })),
         }))
+      })
+      // ── Table Sessions Realtime ──────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'table_sessions' }, (payload) => {
+        const session: TableSession = { ...mapSession(payload.new as Record<string, unknown>), orders: [] }
+        setState(prev => ({
+          ...prev,
+          tableSessions: prev.tableSessions.some(s => s.id === session.id)
+            ? prev.tableSessions
+            : [...prev.tableSessions, session],
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'table_sessions' }, (payload) => {
+        const updated = mapSession(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          tableSessions: prev.tableSessions.map(s =>
+            s.id === updated.id ? { ...updated, orders: s.orders } : s
+          ),
+        }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'table_sessions' }, (payload) => {
+        const deletedId = (payload.old as Record<string, unknown>).id as string
+        setState(prev => ({
+          ...prev,
+          tableSessions: prev.tableSessions.filter(s => s.id !== deletedId),
+        }))
+      })
+      // ── Ingredients Realtime ─────────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ingredients' }, (payload) => {
+        const ing = mapIngredient(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          ingredients: prev.ingredients.some(i => i.id === ing.id)
+            ? prev.ingredients.map(i => i.id === ing.id ? ing : i)
+            : [...prev.ingredients, ing],
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ingredients' }, (payload) => {
+        const ing = mapIngredient(payload.new as Record<string, unknown>)
+        setState(prev => ({ ...prev, ingredients: prev.ingredients.map(i => i.id === ing.id ? ing : i) }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'ingredients' }, (payload) => {
+        const deletedId = (payload.old as Record<string, unknown>).id as string
+        setState(prev => ({ ...prev, ingredients: prev.ingredients.filter(i => i.id !== deletedId) }))
+      })
+      // ── App Config Realtime ──────────────────────────────────────────────────
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_config' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        if (row.id !== 'default') return
+        const config: AppConfig = {
+          impuestoPorcentaje: Number(row.impuesto_porcentaje) ?? 16,
+          propinaSugeridaPorcentaje: Number(row.propina_sugerida_porcentaje) ?? 15,
+          tiempoExpiracionSesionMinutos: Number(row.tiempo_expiracion_sesion_minutos) ?? 180,
+          zonasReparto: (row.zonas_reparto as string[]) ?? [],
+          horariosOperacion: (row.horarios_operacion as AppConfig['horariosOperacion']) ?? [],
+          metodospagoActivos: (row.metodos_pago_activos as AppConfig['metodospagoActivos']) ?? { efectivo: true, tarjeta: true, transferencia: true },
+          sonidoNuevosPedidos: (row.sonido_nuevos_pedidos as boolean) ?? true,
+          notificacionesStockBajo: (row.notificaciones_stock_bajo as boolean) ?? true,
+        }
+        setState(prev => ({ ...prev, config }))
+      })
+      // ── Tables Config Realtime ───────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tables_config' }, (payload) => {
+        const table = mapTableConfig(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          tables: prev.tables.some(t => t.id === table.id)
+            ? prev.tables
+            : [...prev.tables, table].sort((a, b) => a.numero - b.numero),
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tables_config' }, (payload) => {
+        const table = mapTableConfig(payload.new as Record<string, unknown>)
+        setState(prev => ({
+          ...prev,
+          tables: prev.tables.map(t => t.id === table.id ? table : t),
+        }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tables_config' }, (payload) => {
+        const deletedId = (payload.old as Record<string, unknown>).id as string
+        setState(prev => ({ ...prev, tables: prev.tables.filter(t => t.id !== deletedId) }))
       })
       .subscribe()
 
@@ -1680,26 +1785,37 @@ const addMenuItem = useCallback(
       activa: true,
       createdAt: new Date(),
     }
-    setState(prev => ({
-      ...prev,
-      tables: [...prev.tables, newTable],
-    }))
+    setState(prev => ({ ...prev, tables: [...prev.tables, newTable] }))
+    supabase.from('tables_config').insert({
+      id: newTable.id,
+      numero: newTable.numero,
+      capacidad: newTable.capacidad,
+      ubicacion: newTable.ubicacion ?? null,
+      activa: true,
+    }).then(({ error }) => { if (error) console.error('Error guardando mesa:', error) })
   }, [])
-  
+
   const updateTable = useCallback((tableId: string, updates: Partial<TableConfig>) => {
     setState(prev => ({
       ...prev,
-      tables: prev.tables.map(table =>
-        table.id === tableId ? { ...table, ...updates } : table
-      ),
+      tables: prev.tables.map(table => table.id === tableId ? { ...table, ...updates } : table),
     }))
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.numero !== undefined) dbUpdates.numero = updates.numero
+    if (updates.nombre !== undefined) dbUpdates.nombre = updates.nombre
+    if (updates.capacidad !== undefined) dbUpdates.capacidad = updates.capacidad
+    if (updates.activa !== undefined) dbUpdates.activa = updates.activa
+    if (updates.ubicacion !== undefined) dbUpdates.ubicacion = updates.ubicacion
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase.from('tables_config').update(dbUpdates).eq('id', tableId)
+        .then(({ error }) => { if (error) console.error('Error actualizando mesa:', error) })
+    }
   }, [])
-  
+
   const deleteTable = useCallback((tableId: string) => {
-    setState(prev => ({
-      ...prev,
-      tables: prev.tables.filter(table => table.id !== tableId),
-    }))
+    setState(prev => ({ ...prev, tables: prev.tables.filter(table => table.id !== tableId) }))
+    supabase.from('tables_config').delete().eq('id', tableId)
+      .then(({ error }) => { if (error) console.error('Error eliminando mesa:', error) })
   }, [])
   
   const getActiveTables = useCallback((): TableConfig[] => {
