@@ -104,6 +104,7 @@ export interface Order {
   telefono?: string
   direccion?: string
   zonaReparto?: string
+  costoEnvio?: number
   repartidorId?: string
   // Tiempos
   tiempoInicioPreparacion?: Date

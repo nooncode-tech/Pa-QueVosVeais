@@ -1,14 +1,17 @@
 'use client'
 
-import { Check, Clock, Package, MapPin, Phone, Truck, ShoppingBag, AlertCircle } from 'lucide-react'
+import { useState } from 'react'
+import { Check, Clock, Package, MapPin, Phone, Truck, ShoppingBag, AlertCircle, Plus } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { formatPrice, formatTime, getChannelLabel, getStatusLabel, getTimeDiff, type OrderStatus } from '@/lib/store'
+import { formatPrice, formatTime, getChannelLabel, getStatusLabel, getTimeDiff, type OrderStatus, type Channel } from '@/lib/store'
+import { CreateOrderDialog } from '@/components/admin/create-order-dialog'
 
 export function DeliveryBoard() {
   const { orders, updateOrderStatus } = useApp()
+  const [newOrderChannel, setNewOrderChannel] = useState<Channel | null>(null)
   
   // Get all orders that need delivery attention
   const pendingOrders = orders.filter(o => 
@@ -38,6 +41,27 @@ export function DeliveryBoard() {
   
   return (
     <div className="p-4">
+      {/* New Order Buttons */}
+      <div className="flex gap-2 mb-4">
+        <Button
+          size="sm"
+          className="flex-1 h-9 text-xs"
+          onClick={() => setNewOrderChannel('delivery')}
+        >
+          <Truck className="h-3.5 w-3.5 mr-1.5" />
+          Nuevo Delivery
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 h-9 text-xs"
+          onClick={() => setNewOrderChannel('para_llevar')}
+        >
+          <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
+          Para llevar
+        </Button>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2 mb-4">
         <Card className="bg-success/10 border-success/20">
@@ -88,10 +112,11 @@ export function DeliveryBoard() {
               const bReady = !needsB || order.cocinaBStatus === 'listo'
               const allKitchensReady = aReady && bReady
               
-              const total = order.items.reduce((sum, item) => {
+              const subtotal = order.items.reduce((sum, item) => {
                 const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
                 return sum + (item.menuItem.precio + extrasTotal) * item.cantidad
               }, 0)
+              const total = subtotal + (order.costoEnvio ?? 0)
               
               return (
                 <Card 
@@ -175,9 +200,23 @@ export function DeliveryBoard() {
                     </ul>
                     
                     {/* Total */}
-                    <div className="flex justify-between text-xs mb-2 pt-1 border-t border-border">
-                      <span className="text-muted-foreground">Total</span>
-                      <span className="font-semibold">{formatPrice(total)}</span>
+                    <div className="pt-1 border-t border-border mb-2 space-y-0.5">
+                      {order.costoEnvio ? (
+                        <>
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Subtotal</span>
+                            <span>{formatPrice(subtotal)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Envío</span>
+                            <span>{formatPrice(order.costoEnvio)}</span>
+                          </div>
+                        </>
+                      ) : null}
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Total</span>
+                        <span className="font-semibold">{formatPrice(total)}</span>
+                      </div>
                     </div>
                     
                     {/* Kitchen Status */}
@@ -253,6 +292,13 @@ export function DeliveryBoard() {
           </div>
         )}
       </div>
+
+      {newOrderChannel && (
+        <CreateOrderDialog
+          channel={newOrderChannel}
+          onClose={() => setNewOrderChannel(null)}
+        />
+      )}
     </div>
   )
 }

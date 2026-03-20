@@ -232,6 +232,7 @@ function mapOrder(row: Record<string, unknown>): Order {
     telefono: (row.telefono as string) ?? undefined,
     direccion: (row.direccion as string) ?? undefined,
     zonaReparto: (row.zona_reparto as string) ?? undefined,
+    costoEnvio: row.costo_envio ? Number(row.costo_envio) : undefined,
     claimedByKitchen: (row.claimed_by_kitchen as 'cocina_a' | 'cocina_b') ?? undefined,
     cancelado: (row.cancelado as boolean) ?? false,
     cancelReason: (row.cancel_reason as CancelReason) ?? undefined,
@@ -969,6 +970,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       telefono: clienteInfo?.telefono,
       direccion: clienteInfo?.direccion,
       zonaReparto: clienteInfo?.zonaReparto,
+      costoEnvio: clienteInfo?.costoEnvio,
     }
     
     // Capture session info to sync after setState
@@ -1076,6 +1078,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       telefono: order.telefono ?? null,
       direccion: order.direccion ?? null,
       zona_reparto: order.zonaReparto ?? null,
+      costo_envio: order.costoEnvio ?? 0,
       created_at: order.createdAt.toISOString(),
       updated_at: order.updatedAt.toISOString(),
     }).then(({ error }) => {
