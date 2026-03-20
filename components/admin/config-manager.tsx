@@ -16,6 +16,7 @@ const DEFAULT_METODOS_PAGO = {
   efectivo: true,
   tarjeta: true,
   transferencia: true,
+  apple_pay: false,
 }
 
 export function ConfigManager() {
@@ -174,9 +175,20 @@ export function ConfigManager() {
               <Label className="text-[10px]">Transferencia</Label>
               <Switch
                 checked={localConfig.metodospagoActivos.transferencia}
-                onCheckedChange={(checked) => setLocalConfig(prev => ({ 
-                  ...prev, 
+                onCheckedChange={(checked) => setLocalConfig(prev => ({
+                  ...prev,
                   metodospagoActivos: { ...prev.metodospagoActivos, transferencia: checked }
+                }))}
+                className="scale-75"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px]">Apple Pay</Label>
+              <Switch
+                checked={localConfig.metodospagoActivos.apple_pay ?? false}
+                onCheckedChange={(checked) => setLocalConfig(prev => ({
+                  ...prev,
+                  metodospagoActivos: { ...prev.metodospagoActivos, apple_pay: checked }
                 }))}
                 className="scale-75"
               />

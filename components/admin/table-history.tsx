@@ -6,7 +6,7 @@ import { useApp } from '@/lib/context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatPrice, formatDateTime, formatTime, type TableSession } from '@/lib/store'
+import { formatPrice, formatDateTime, formatTime, getPaymentMethodLabel, type TableSession, type PaymentMethod } from '@/lib/store'
 
 export function TableHistory() {
   const { tableSessions, tables } = useApp()
@@ -67,9 +67,7 @@ export function TableHistory() {
               <div>
                 <p className="text-muted-foreground">Metodo de pago</p>
                 <p className="font-medium text-foreground">
-                  {selectedSession.paymentMethod === 'tarjeta' ? 'Tarjeta' :
-                   selectedSession.paymentMethod === 'efectivo' ? 'Efectivo' :
-                   selectedSession.paymentMethod === 'apple_pay' ? 'Apple Pay' : 'N/A'}
+                  {selectedSession.paymentMethod ? getPaymentMethodLabel(selectedSession.paymentMethod) : 'N/A'}
                 </p>
               </div>
             </div>
@@ -231,8 +229,7 @@ export function TableHistory() {
                           {session.paymentMethod && (
                             <span className="flex items-center gap-0.5">
                               <CreditCard className="h-2.5 w-2.5" />
-                              {session.paymentMethod === 'tarjeta' ? 'Tarjeta' :
-                               session.paymentMethod === 'efectivo' ? 'Efectivo' : 'Apple Pay'}
+                              {getPaymentMethodLabel(session.paymentMethod as PaymentMethod)}
                             </span>
                           )}
                         </div>

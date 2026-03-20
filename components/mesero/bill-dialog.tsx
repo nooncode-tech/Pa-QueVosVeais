@@ -80,11 +80,14 @@ const quickDiscounts = [
     { label: '20%', value: Math.round(session.subtotal * 0.2) },
   ]
   
-  const paymentMethods: { key: PaymentMethod; label: string; icon: React.ReactNode }[] = [
+  const ALL_PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: React.ReactNode }[] = [
     { key: 'efectivo', label: 'Efectivo', icon: <Banknote className="h-5 w-5" /> },
     { key: 'tarjeta', label: 'Tarjeta', icon: <CreditCard className="h-5 w-5" /> },
+    { key: 'transferencia', label: 'Transferencia', icon: <Smartphone className="h-5 w-5" /> },
     { key: 'apple_pay', label: 'Apple Pay', icon: <Smartphone className="h-5 w-5" /> },
   ]
+  const metodos = config.metodospagoActivos
+  const paymentMethods = ALL_PAYMENT_METHODS.filter(m => metodos[m.key as keyof typeof metodos] ?? false)
   
   // Recalculate total with current values
   const currentDiscount = Number.parseFloat(descuento) || 0

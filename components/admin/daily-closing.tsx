@@ -18,12 +18,14 @@ import {
   RotateCcw,
   Calendar
 } from 'lucide-react'
-import { 
-  formatPrice, 
-  formatDate, 
+import {
+  formatPrice,
+  formatDate,
   calculateOrderTotal,
   getChannelLabel,
-  type Order 
+  getPaymentMethodLabel,
+  type Order,
+  type PaymentMethod,
 } from '@/lib/store'
 import { useReactToPrint } from 'react-to-print'
 
@@ -166,7 +168,7 @@ export function DailyClosing() {
     ).join('')
 
     const paymentRows = Object.entries(stats.salesByPayment).map(
-      ([m, amt]) => `<tr><td>${m === 'tarjeta' ? 'Tarjeta' : m === 'apple_pay' ? 'Apple Pay' : 'Efectivo'}</td><td style="text-align:right">$${(amt as number).toFixed(2)}</td></tr>`
+      ([m, amt]) => `<tr><td>${getPaymentMethodLabel(m as PaymentMethod)}</td><td style="text-align:right">$${(amt as number).toFixed(2)}</td></tr>`
     ).join('')
 
     const topItemRows = stats.topItems.map(
@@ -423,12 +425,12 @@ export function DailyClosing() {
                   Object.entries(stats.salesByPayment).map(([method, amount]) => (
                     <div key={method} className="flex justify-between items-center text-xs">
                       <div className="flex items-center gap-1.5">
-                        {method === 'tarjeta' ? (
+                        {method === 'tarjeta' || method === 'apple_pay' ? (
                           <CreditCard className="h-3 w-3" />
                         ) : (
                           <Banknote className="h-3 w-3" />
                         )}
-                        <span>{method === 'tarjeta' ? 'Tarjeta' : 'Efectivo'}</span>
+                        <span>{getPaymentMethodLabel(method as PaymentMethod)}</span>
                       </div>
                       <span className="font-medium">{formatPrice(amount)}</span>
                     </div>

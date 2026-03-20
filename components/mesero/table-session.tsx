@@ -7,7 +7,7 @@ import { BackButton } from '@/components/back-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { formatPrice, formatTime, getStatusLabel, type Order } from '@/lib/store'
+import { formatPrice, formatTime, getStatusLabel, getPaymentMethodLabel, type Order, type PaymentMethod } from '@/lib/store'
 import { AddOrderDialog } from './add-order-dialog'
 import { BillDialog } from './bill-dialog'
 import { EditOrderDialog } from '@/components/shared/edit-order-dialog'
@@ -358,8 +358,7 @@ export function TableSession({ mesa, onBack }: TableSessionProps) {
                           Cuenta pagada
                           {session.paymentMethod && (
                             <span className="text-muted-foreground ml-1">
-                              ({session.paymentMethod === 'apple_pay' ? 'Apple Pay' : 
-                                session.paymentMethod === 'tarjeta' ? 'Tarjeta' : 'Efectivo'})
+                                ({getPaymentMethodLabel(session.paymentMethod as PaymentMethod)})
                             </span>
                           )}
                         </div>

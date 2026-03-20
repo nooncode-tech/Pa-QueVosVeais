@@ -6,7 +6,7 @@ export type Kitchen = 'cocina_a' | 'cocina_b' | 'ambas'
 export type OrderStatus = 'recibido' | 'preparando' | 'listo' | 'empacado' | 'en_camino' | 'entregado' | 'cancelado'
 export type CancelReason = 'cliente_solicito' | 'sin_ingredientes' | 'error_pedido' | 'tiempo_excedido' | 'otro'
 export type KitchenStatus = 'en_cola' | 'preparando' | 'listo'
-export type PaymentMethod = 'tarjeta' | 'efectivo' | 'apple_pay'
+export type PaymentMethod = 'tarjeta' | 'efectivo' | 'transferencia' | 'apple_pay'
 export type PaymentStatus = 'pendiente' | 'solicitado' | 'pagado' | 'reembolsado'
 export type BillStatus = 'abierta' | 'cerrada' | 'pagada'
 export type UserRole = 'admin' | 'mesero' | 'cocina_a' | 'cocina_b'
@@ -198,6 +198,7 @@ export interface AppConfig {
     efectivo: boolean
     tarjeta: boolean
     transferencia: boolean
+    apple_pay: boolean
   }
   sonidoNuevosPedidos: boolean
   notificacionesStockBajo: boolean
@@ -595,6 +596,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     efectivo: true,
     tarjeta: true,
     transferencia: true,
+    apple_pay: false,
   },
   sonidoNuevosPedidos: true,
   notificacionesStockBajo: true,
@@ -714,6 +716,7 @@ export function getPaymentMethodLabel(method: PaymentMethod): string {
   const labels: Record<PaymentMethod, string> = {
     tarjeta: 'Tarjeta',
     efectivo: 'Efectivo',
+    transferencia: 'Transferencia',
     apple_pay: 'Apple Pay',
   }
   return labels[method]
