@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(curl -s \"https://bpamwnayttumghxbdtrs.supabase.co/auth/v1/admin/users?per_page=20\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwYW13bmF5dHR1bWdoeGJkdHJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5NTI5MiwiZXhwIjoyMDg5NDcxMjkyfQ.4chRT4ZRlIs1PGQ6i0hZ7MkCIrxLXoxXU5LeqyZi4p8\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwYW13bmF5dHR1bWdoeGJkdHJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5NTI5MiwiZXhwIjoyMDg5NDcxMjkyfQ.4chRT4ZRlIs1PGQ6i0hZ7MkCIrxLXoxXU5LeqyZi4p8\")",
+      "Bash(node -e \"const d=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const j=JSON.parse\\(d\\); \\(j.users||[]\\).forEach\\(u=>console.log\\(u.id, u.email, JSON.stringify\\(u.user_metadata\\)\\)\\)\")",
+      "Bash(npx supabase:*)",
+      "Bash(curl -s \"https://bpamwnayttumghxbdtrs.supabase.co/rest/v1/categories?select=id,name\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwYW13bmF5dHR1bWdoeGJkdHJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5NTI5MiwiZXhwIjoyMDg5NDcxMjkyfQ.4chRT4ZRlIs1PGQ6i0hZ7MkCIrxLXoxXU5LeqyZi4p8\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwYW13bmF5dHR1bWdoeGJkdHJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5NTI5MiwiZXhwIjoyMDg5NDcxMjkyfQ.4chRT4ZRlIs1PGQ6i0hZ7MkCIrxLXoxXU5LeqyZi4p8\")",
+      "Bash(curl -s \"https://bpamwnayttumghxbdtrs.supabase.co/rest/v1/menu_items?select=id,name&limit=5\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwYW13bmF5dHR1bWdoeGJkdHJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5NTI5MiwiZXhwIjoyMDg5NDcxMjkyfQ.4chRT4ZRlIs1PGQ6i0hZ7MkCIrxLXoxXU5LeqyZi4p8\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwYW13bmF5dHR1bWdoeGJkdHJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5NTI5MiwiZXhwIjoyMDg5NDcxMjkyfQ.4chRT4ZRlIs1PGQ6i0hZ7MkCIrxLXoxXU5LeqyZi4p8\")",
+      "Bash(SERVICE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwYW13bmF5dHR1bWdoeGJkdHJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5NTI5MiwiZXhwIjoyMDg5NDcxMjkyfQ.4chRT4ZRlIs1PGQ6i0hZ7MkCIrxLXoxXU5LeqyZi4p8\" BASE=\"https://bpamwnayttumghxbdtrs.supabase.co/rest/v1\" __NEW_LINE_eec49d813a5234a6__ echo \"Borrando menu_items demo...\" curl -s -X DELETE \"$BASE/menu_items?id=neq.null\" -H \"apikey: $SERVICE_KEY\" -H \"Authorization: Bearer $SERVICE_KEY\" -H \"Prefer: return=representation\")"
     ]
   }
 }
