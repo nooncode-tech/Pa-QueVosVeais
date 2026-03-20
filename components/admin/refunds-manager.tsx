@@ -18,7 +18,7 @@ import {
 import { RefundDialog } from '@/components/shared/refund-dialog'
 
 export function RefundsManager() {
-  const { refunds, orders, users } = useApp()
+  const { refunds, orders, tableSessions, users } = useApp()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrderForRefund, setSelectedOrderForRefund] = useState<string | null>(null)
   
@@ -65,9 +65,12 @@ export function RefundsManager() {
   })
   const refundedToday = refundsToday.reduce((sum, r) => sum + r.monto, 0)
   
-  // Find orders that can be refunded (paid orders)
-  const refundableOrders = orders.filter(o => 
-    o.paymentStatus === 'pagado' && 
+  // Find orders that can be refunded — their session must be paid and no full refund yet
+  const paidSessionMesas = new Set(
+    tableSessions.filter(s => s.paymentStatus === 'pagado').map(s => s.mesa)
+  )
+  const refundableOrders = orders.filter(o =>
+    o.mesa !== undefined && paidSessionMesas.has(o.mesa) &&
     !refunds.some(r => r.orderId === o.id && r.tipo === 'total')
   )
   

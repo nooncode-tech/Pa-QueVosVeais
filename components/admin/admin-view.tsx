@@ -72,7 +72,7 @@ export function AdminView({ onBack }: AdminViewProps) {
   const pendingOrdersCount = orders.filter(o => 
     o.status !== 'entregado' && o.status !== 'cancelado'
   ).length
-  const pendingRefundsCount = refunds.filter(r => r.status === 'pendiente').length
+  const pendingRefundsCount = refunds.length
   
   const navGroups: NavGroup[] = [
     {

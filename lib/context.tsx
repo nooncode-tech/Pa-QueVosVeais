@@ -2,24 +2,6 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { supabase } from "./supabase"
-async function uploadMenuImage(file: File) {
-  const fileName = `${Date.now()}-${file.name}`
-
-  const { error } = await supabase.storage
-    .from("menu-images")
-    .upload(fileName, file)
-
-  if (error) {
-    console.error("Error subiendo imagen:", error)
-    return null
-  }
-
-  const { data } = supabase.storage
-    .from("menu-images")
-    .getPublicUrl(fileName)
-
-  return data.publicUrl
-}
 import {
   type Order,
   type OrderItem,
@@ -66,6 +48,14 @@ import {
   validateQRToken,
   getDeliveryZoneCost,
 } from './store'
+
+async function uploadMenuImage(file: File): Promise<string | null> {
+  const fileName = `${Date.now()}-${file.name}`
+  const { error } = await supabase.storage.from('menu-images').upload(fileName, file)
+  if (error) { console.error('Error subiendo imagen:', error); return null }
+  const { data } = supabase.storage.from('menu-images').getPublicUrl(fileName)
+  return data.publicUrl
+}
 
 interface AppState {
   orders: Order[]
@@ -134,7 +124,7 @@ interface AppContextType extends AppState {
   getAvailableRewards: (sessionId: string) => Reward[]
   
   // Menu actions
-  updateMenuItem: (itemId: string, updates: Partial<MenuItem>) => void
+  updateMenuItem: (itemId: string, updates: Partial<MenuItem>, imageFile?: File) => void
   addMenuItem: (item: Omit<MenuItem, 'id'>, imageFile?: File) => Promise<void>
   deleteMenuItem: (itemId: string) => void
   getAvailableMenuItems: () => MenuItem[]
@@ -160,10 +150,6 @@ interface AppContextType extends AppState {
   getLowStockIngredients: () => Ingredient[]
   
   // User management
-  addUser: (user: Omit<User, 'id' | 'createdAt'>) => void
-  updateUser: (userId: string, updates: Partial<User>) => void
-  deleteUser: (userId: string) => void
-  
   // Config
   updateConfig: (updates: Partial<AppConfig>) => void
   
@@ -192,6 +178,7 @@ interface AppContextType extends AppState {
   
   // Emergency actions
   emergencyCloseAllTables: () => void
+  emergencyCloseTables: (tables: number[]) => void
   
   // Utility
   getOrdersForKitchen: (kitchen: 'a' | 'b') => Order[]
@@ -460,9 +447,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (data) setState(prev => ({ ...prev, orders: data.map(mapOrder) }))
   }
 
+  const cargarUsers = async () => {
+    const { data, error } = await supabase.from('profiles').select('id, username, nombre, role, activo, created_at').order('created_at')
+    if (error) { console.error('Error cargando usuarios:', error); return }
+    if (data) {
+      const users: User[] = data.map(p => ({
+        id: p.id,
+        username: p.username,
+        nombre: p.nombre,
+        role: p.role as UserRole,
+        activo: p.activo,
+        createdAt: new Date(p.created_at),
+      }))
+      setState(prev => ({ ...prev, users }))
+    }
+  }
+
+  const cargarIngredientes = async () => {
+    const { data, error } = await supabase.from('ingredients').select('*').eq('activo', true).order('nombre')
+    if (error) { console.error('Error cargando ingredientes:', error); return }
+    if (data && data.length > 0) {
+      const ingredientes: Ingredient[] = data.map(row => ({
+        id: row.id as string,
+        nombre: row.nombre as string,
+        categoria: row.categoria as string,
+        unidad: row.unidad as Ingredient['unidad'],
+        stockActual: Number(row.stock_actual) ?? 0,
+        stockMinimo: Number(row.stock_minimo) ?? 0,
+        cantidadMaxima: Number(row.cantidad_maxima) ?? 0,
+        costoUnitario: Number(row.costo_unitario) ?? 0,
+        activo: row.activo as boolean,
+      }))
+      setState(prev => ({ ...prev, ingredients: ingredientes }))
+    }
+  }
+
+  const cargarAjustes = async () => {
+    const since = new Date()
+    since.setMonth(since.getMonth() - 3) // load last 3 months
+    const { data, error } = await supabase
+      .from('inventory_adjustments')
+      .select('*')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+    if (error) { console.error('Error cargando ajustes:', error); return }
+    if (data && data.length > 0) {
+      const ajustes: InventoryAdjustment[] = data.map(row => ({
+        id: row.id as string,
+        ingredientId: row.ingredient_id as string,
+        tipo: row.tipo as InventoryAdjustment['tipo'],
+        cantidad: Number(row.cantidad),
+        motivo: row.motivo as string,
+        userId: row.user_id as string ?? 'system',
+        createdAt: new Date(row.created_at as string),
+      }))
+      setState(prev => ({ ...prev, inventoryAdjustments: ajustes }))
+    }
+  }
+
   cargarMenu()
   cargarCategorias()
   cargarOrders()
+  cargarUsers()
+  cargarIngredientes()
+  cargarAjustes()
 
 }, [])
 
@@ -1205,6 +1253,19 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       }
     })
   }, [])
+
+  const emergencyCloseTables = useCallback((tables: number[]) => {
+    const mesasSet = new Set(tables)
+    setState(prev => ({
+      ...prev,
+      tableSessions: prev.tableSessions.filter(s => !s.activa || !mesasSet.has(s.mesa)),
+      orders: prev.orders.filter(o => !o.mesa || !mesasSet.has(o.mesa)),
+      qrTokens: prev.qrTokens.map(t =>
+        mesasSet.has(t.mesa) && t.activo ? { ...t, activo: false } : t
+      ),
+      waiterCalls: prev.waiterCalls.filter(c => !mesasSet.has(c.mesa) || c.atendido),
+    }))
+  }, [])
   
   const getSessionBill = useCallback((sessionId: string): TableSession | undefined => {
     return state.tableSessions.find(s => s.id === sessionId)
@@ -1534,66 +1595,87 @@ const addMenuItem = useCallback(
   // ============ INVENTORY ACTIONS ============
   const updateIngredient = useCallback((ingredientId: string, updates: Partial<Ingredient>) => {
     setState(prev => {
-      const newIngredients = prev.menuItems.map(item => {
+      const updatedMenuItems = prev.menuItems.map(item => {
         const { canPrepare } = canPrepareItem(item, prev.ingredients.map(i =>
           i.id === ingredientId ? { ...i, ...updates } : i
         ))
         return { ...item, disponible: canPrepare }
       })
-      
       return {
         ...prev,
         ingredients: prev.ingredients.map(ing =>
           ing.id === ingredientId ? { ...ing, ...updates } : ing
         ),
-        menuItems: newIngredients,
+        menuItems: updatedMenuItems,
       }
     })
+
+    // Sync to Supabase
+    const payload: Record<string, unknown> = {}
+    if (updates.nombre !== undefined) payload.nombre = updates.nombre
+    if (updates.categoria !== undefined) payload.categoria = updates.categoria
+    if (updates.unidad !== undefined) payload.unidad = updates.unidad
+    if (updates.stockActual !== undefined) payload.stock_actual = updates.stockActual
+    if (updates.stockMinimo !== undefined) payload.stock_minimo = updates.stockMinimo
+    if (updates.cantidadMaxima !== undefined) payload.cantidad_maxima = updates.cantidadMaxima
+    if (updates.costoUnitario !== undefined) payload.costo_unitario = updates.costoUnitario
+    if (updates.activo !== undefined) payload.activo = updates.activo
+    if (Object.keys(payload).length > 0) {
+      supabase.from('ingredients').update(payload).eq('id', ingredientId).then(({ error }) => {
+        if (error) console.error('Error actualizando ingrediente:', error)
+      })
+    }
   }, [])
-  
+
   const addIngredient = useCallback((ingredient: Omit<Ingredient, 'id'>) => {
+    const newId = generateId()
     setState(prev => ({
       ...prev,
-      ingredients: [...prev.ingredients, { ...ingredient, id: generateId() }],
+      ingredients: [...prev.ingredients, { ...ingredient, id: newId }],
     }))
+
+    supabase.from('ingredients').insert([{
+      id: newId,
+      nombre: ingredient.nombre,
+      categoria: ingredient.categoria,
+      unidad: ingredient.unidad,
+      stock_actual: ingredient.stockActual,
+      stock_minimo: ingredient.stockMinimo,
+      cantidad_maxima: ingredient.cantidadMaxima,
+      costo_unitario: ingredient.costoUnitario,
+      activo: ingredient.activo,
+    }]).then(({ error }) => {
+      if (error) console.error('Error creando ingrediente:', error)
+    })
   }, [])
-  
+
   const adjustInventory = useCallback((ingredientId: string, tipo: 'entrada' | 'salida' | 'merma' | 'ajuste', cantidad: number, motivo: string) => {
+    const userId = state.currentUser?.id || 'system'
     const adjustment: InventoryAdjustment = {
       id: generateId(),
       ingredientId,
       tipo,
       cantidad,
       motivo,
-      userId: state.currentUser?.id || 'system',
+      userId,
       createdAt: new Date(),
     }
-    
+
+    let newStock = 0
     setState(prev => {
       const newIngredients = prev.ingredients.map(ing => {
         if (ing.id !== ingredientId) return ing
-        
-        let newStock = ing.stockActual
-        if (tipo === 'entrada') {
-  newStock += cantidad
-} else if (tipo === 'ajuste') {
-  newStock = cantidad
-} else {
-  newStock = Math.max(0, newStock - cantidad)
-}
-        
-        // Round to 2 decimals to avoid floating point accumulation
-        newStock = Math.round(newStock * 100) / 100
-        
+        let stock = ing.stockActual
+        if (tipo === 'entrada') stock += cantidad
+        else if (tipo === 'ajuste') stock = cantidad
+        else stock = Math.max(0, stock - cantidad)
+        newStock = Math.round(stock * 100) / 100
         return { ...ing, stockActual: newStock }
       })
-      
-      // Update menu availability
       const menuItems = prev.menuItems.map(item => {
         const { canPrepare } = canPrepareItem(item, newIngredients)
         return { ...item, disponible: canPrepare }
       })
-      
       return {
         ...prev,
         ingredients: newIngredients,
@@ -1601,33 +1683,26 @@ const addMenuItem = useCallback(
         inventoryAdjustments: [...prev.inventoryAdjustments, adjustment],
       }
     })
+
+    // Persist adjustment + updated stock to Supabase
+    supabase.from('inventory_adjustments').insert([{
+      id: adjustment.id,
+      ingredient_id: ingredientId,
+      tipo,
+      cantidad,
+      motivo,
+      user_id: userId === 'system' ? null : userId,
+    }]).then(({ error }) => {
+      if (error) console.error('Error guardando ajuste:', error)
+    })
+    supabase.from('ingredients').update({ stock_actual: newStock }).eq('id', ingredientId).then(({ error }) => {
+      if (error) console.error('Error actualizando stock:', error)
+    })
   }, [state.currentUser])
   
   const getLowStockIngredients = useCallback((): Ingredient[] => {
     return state.ingredients.filter(ing => ing.stockActual <= ing.stockMinimo)
   }, [state.ingredients])
-  
-  // ============ USER MANAGEMENT ============
-  const addUser = useCallback((user: Omit<User, 'id' | 'createdAt'>) => {
-    setState(prev => ({
-      ...prev,
-      users: [...prev.users, { ...user, id: generateId(), createdAt: new Date() }],
-    }))
-  }, [])
-  
-  const updateUser = useCallback((userId: string, updates: Partial<User>) => {
-    setState(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.id === userId ? { ...u, ...updates } : u),
-    }))
-  }, [])
-  
-  const deleteUser = useCallback((userId: string) => {
-    setState(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.id === userId ? { ...u, activo: false } : u),
-    }))
-  }, [])
   
   // ============ CONFIG ============
   const updateConfig = useCallback((updates: Partial<AppConfig>) => {
@@ -2020,9 +2095,6 @@ const addMenuItem = useCallback(
     addIngredient,
     adjustInventory,
     getLowStockIngredients,
-    addUser,
-    updateUser,
-    deleteUser,
     updateConfig,
     logAction,
     getOrdersForKitchen,
@@ -2045,6 +2117,7 @@ const addMenuItem = useCallback(
     resetSessionPaymentStatus,
     markFeedbackDone,
   emergencyCloseAllTables,
+  emergencyCloseTables,
   }
   
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

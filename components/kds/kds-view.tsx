@@ -489,15 +489,28 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
                   <span className="text-sm text-muted-foreground">Listos: <strong className="text-success">{readyOrders.length}</strong></span>
                 </div>
               </div>
-              {queueOrders.some(o => {
-                const minutes = Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 1000 / 60)
-                return minutes >= 10
-              }) && (
-                <div className="flex items-center gap-2 text-amber-500">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span className="text-sm font-medium">Ordenes con espera larga</span>
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                {queueOrders.some(o => {
+                  const minutes = Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 1000 / 60)
+                  return minutes >= 10
+                }) && (
+                  <div className="flex items-center gap-2 text-amber-500">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Ordenes con espera larga</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setSoundMuted(m => !m)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title={soundMuted ? 'Activar sonido' : 'Silenciar'}
+                >
+                  {soundMuted
+                    ? <VolumeX className="h-4 w-4" />
+                    : <Volume2 className="h-4 w-4" />
+                  }
+                  <span className="hidden lg:inline">{soundMuted ? 'Silenciado' : 'Sonido activo'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -531,6 +544,7 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
                     onStart={activeTab === 'queue' ? () => handleStartOrder(order.id) : undefined}
                     onComplete={activeTab === 'preparing' ? () => handleCompleteOrder(order.id) : undefined}
                     priorityIndex={activeTab === 'queue' ? index : undefined}
+                    isNew={newOrderIds.has(order.id)}
                     large
                   />
                 ))}

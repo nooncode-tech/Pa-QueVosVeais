@@ -1,10 +1,9 @@
 'use client'
 
-import React from "react"
-
-import { useState } from 'react'
-import { Plus, Edit2, User, Shield, ChefHat, UserCheck, Trash2 } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Plus, Edit2, Shield, ChefHat, UserCheck, Trash2, Loader2, RefreshCw } from 'lucide-react'
 import { useApp } from '@/lib/context'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,146 +11,225 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { User as UserType, UserRole } from '@/lib/store'
+import type { UserRole } from '@/lib/store'
+
+interface Profile {
+  id: string
+  username: string
+  nombre: string
+  role: UserRole
+  activo: boolean
+  created_at: string
+}
 
 const ROLE_CONFIG: Record<UserRole, { label: string; icon: React.ReactNode; color: string }> = {
-  admin: { label: 'Administrador', icon: <Shield className="h-3.5 w-3.5" />, color: 'bg-primary text-primary-foreground' },
-  mesero: { label: 'Mesero', icon: <UserCheck className="h-3.5 w-3.5" />, color: 'bg-amber-500 text-white' },
-  cocina_a: { label: 'Cocina A', icon: <ChefHat className="h-3.5 w-3.5" />, color: 'bg-success text-success-foreground' },
-  cocina_b: { label: 'Cocina B', icon: <ChefHat className="h-3.5 w-3.5" />, color: 'bg-blue-500 text-white' },
+  admin:    { label: 'Administrador', icon: <Shield className="h-3.5 w-3.5" />,  color: 'bg-primary text-primary-foreground' },
+  mesero:   { label: 'Mesero',        icon: <UserCheck className="h-3.5 w-3.5" />, color: 'bg-amber-500 text-white' },
+  cocina_a: { label: 'Cocina A',      icon: <ChefHat className="h-3.5 w-3.5" />,  color: 'bg-success text-success-foreground' },
+  cocina_b: { label: 'Cocina B',      icon: <ChefHat className="h-3.5 w-3.5" />,  color: 'bg-blue-500 text-white' },
 }
 
 export function UsersManager() {
-  const { users, addUser, updateUser, deleteUser, currentUser } = useApp()
+  const { currentUser } = useApp()
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [loading, setLoading] = useState(true)
   const [showAddDialog, setShowAddDialog] = useState(false)
-  const [editingUser, setEditingUser] = useState<UserType | null>(null)
-  
-  const handleToggleActive = (user: UserType) => {
-    if (user.id !== currentUser?.id) {
-      updateUser(user.id, { activo: !user.activo })
+  const [editingProfile, setEditingProfile] = useState<Profile | null>(null)
+
+  const loadProfiles = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at')
+    if (!error && data) setProfiles(data as Profile[])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadProfiles() }, [])
+
+  const handleToggleActive = async (profile: Profile) => {
+    if (profile.id === currentUser?.id) return
+
+    // Optimistic update
+    setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, activo: !p.activo } : p))
+
+    const res = await fetch('/api/admin/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: profile.id, updates: { activo: !profile.activo } }),
+    })
+    if (!res.ok) {
+      // Revert on failure
+      setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, activo: profile.activo } : p))
     }
   }
-  
+
+  const handleCreate = async (data: { username: string; password: string; nombre: string; role: UserRole }) => {
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const json = await res.json()
+    if (res.ok && json.profile) {
+      setProfiles(prev => [...prev, json.profile])
+      return null
+    }
+    return json.error as string
+  }
+
+  const handleUpdate = async (userId: string, updates: Partial<Profile>) => {
+    const res = await fetch('/api/admin/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, updates }),
+    })
+    const json = await res.json()
+    if (res.ok && json.profile) {
+      setProfiles(prev => prev.map(p => p.id === userId ? json.profile : p))
+      return null
+    }
+    return json.error as string
+  }
+
+  const handleDelete = async (userId: string) => {
+    const res = await fetch('/api/admin/users', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+    if (res.ok) {
+      setProfiles(prev => prev.filter(p => p.id !== userId))
+      return null
+    }
+    const json = await res.json()
+    return json.error as string
+  }
+
   return (
     <div className="p-3">
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2 mb-3">
         {(Object.keys(ROLE_CONFIG) as UserRole[]).map((role) => {
-          const count = users.filter(u => u.role === role && u.activo).length
-          const config = ROLE_CONFIG[role]
+          const count = profiles.filter(p => p.role === role && p.activo).length
           return (
             <Card key={role} className="bg-secondary/50">
               <CardContent className="p-2 text-center">
                 <p className="text-lg font-bold text-foreground">{count}</p>
-                <p className="text-[9px] text-muted-foreground truncate">{config.label}s</p>
+                <p className="text-[9px] text-muted-foreground truncate">{ROLE_CONFIG[role].label}s</p>
               </CardContent>
             </Card>
           )
         })}
       </div>
-      
+
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-xs font-semibold text-foreground">Gestion de usuarios</h2>
+          <h2 className="text-xs font-semibold text-foreground">Gestión de usuarios</h2>
           <p className="text-[10px] text-muted-foreground">
-            {users.filter(u => u.activo).length} usuario{users.filter(u => u.activo).length !== 1 ? 's' : ''} activo{users.filter(u => u.activo).length !== 1 ? 's' : ''}
+            {profiles.filter(p => p.activo).length} usuario{profiles.filter(p => p.activo).length !== 1 ? 's' : ''} activo{profiles.filter(p => p.activo).length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button 
-          className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5"
-          onClick={() => setShowAddDialog(true)}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Agregar
-        </Button>
+        <div className="flex gap-1.5">
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={loadProfiles} disabled={loading}>
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5" onClick={() => setShowAddDialog(true)}>
+            <Plus className="h-3 w-3 mr-1" />
+            Agregar
+          </Button>
+        </div>
       </div>
-      
+
       {/* Users List */}
-      <div className="space-y-1.5">
-        {users.map((user) => {
-          const roleConfig = ROLE_CONFIG[user.role]
-          const isCurrentUser = user.id === currentUser?.id
-          
-          return (
-            <Card 
-              key={user.id} 
-              className={`border ${!user.activo ? 'opacity-50' : ''} ${isCurrentUser ? 'border-primary' : ''}`}
-            >
-              <CardContent className="p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full ${roleConfig.color} flex items-center justify-center`}>
-                      {roleConfig.icon}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-medium text-xs text-foreground">
-                          {user.nombre}
-                        </h4>
-                        {isCurrentUser && (
-                          <Badge variant="outline" className="text-[8px] h-3.5 px-1">Tu</Badge>
-                        )}
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {profiles.map((profile) => {
+            const roleConfig = ROLE_CONFIG[profile.role]
+            const isCurrentUser = profile.id === currentUser?.id
+
+            return (
+              <Card
+                key={profile.id}
+                className={`border ${!profile.activo ? 'opacity-50' : ''} ${isCurrentUser ? 'border-primary' : ''}`}
+              >
+                <CardContent className="p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full ${roleConfig.color} flex items-center justify-center`}>
+                        {roleConfig.icon}
                       </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        @{user.username}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-medium text-xs text-foreground">{profile.nombre}</h4>
+                          {isCurrentUser && (
+                            <Badge variant="outline" className="text-[8px] h-3.5 px-1">Tu</Badge>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">@{profile.username}</p>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Badge className={`text-[9px] h-4 ${roleConfig.color}`}>
-                      {roleConfig.label}
-                    </Badge>
-                    
-                    <div className="flex items-center gap-1">
+
+                    <div className="flex items-center gap-2">
+                      <Badge className={`text-[9px] h-4 ${roleConfig.color}`}>
+                        {roleConfig.label}
+                      </Badge>
                       <Switch
-                        checked={user.activo}
-                        onCheckedChange={() => handleToggleActive(user)}
+                        checked={profile.activo}
+                        onCheckedChange={() => handleToggleActive(profile)}
                         disabled={isCurrentUser}
                         className="scale-[0.6]"
                       />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingProfile(profile)}
+                        className="h-6 w-6"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
                     </div>
-                    
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEditingUser(user)}
-                      className="h-6 w-6"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-      
-      {/* Add/Edit Dialog */}
-      {(showAddDialog || editingUser) && (
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Add Dialog */}
+      {showAddDialog && (
         <UserDialog
-          user={editingUser}
-          onClose={() => {
-            setShowAddDialog(false)
-            setEditingUser(null)
+          user={null}
+          onClose={() => setShowAddDialog(false)}
+          onSave={async (data) => {
+            const err = await handleCreate(data as { username: string; password: string; nombre: string; role: UserRole })
+            if (!err) setShowAddDialog(false)
+            return err
           }}
-          onSave={(userData) => {
-            if (editingUser) {
-              updateUser(editingUser.id, userData)
-            } else {
-              addUser({
-                ...userData,
-                activo: true,
-              })
-            }
-            setShowAddDialog(false)
-            setEditingUser(null)
+        />
+      )}
+
+      {/* Edit Dialog */}
+      {editingProfile && (
+        <UserDialog
+          user={editingProfile}
+          onClose={() => setEditingProfile(null)}
+          onSave={async (data) => {
+            const err = await handleUpdate(editingProfile.id, data)
+            if (!err) setEditingProfile(null)
+            return err
           }}
-          onDelete={editingUser && editingUser.id !== currentUser?.id ? () => {
-            deleteUser(editingUser.id)
-            setEditingUser(null)
+          onDelete={editingProfile.id !== currentUser?.id ? async () => {
+            const err = await handleDelete(editingProfile.id)
+            if (!err) setEditingProfile(null)
+            return err
           } : undefined}
         />
       )}
@@ -160,32 +238,45 @@ export function UsersManager() {
 }
 
 interface UserDialogProps {
-  user: UserType | null
+  user: Profile | null
   onClose: () => void
-  onSave: (userData: Partial<UserType>) => void
-  onDelete?: () => void
+  onSave: (data: Partial<Profile> & { password?: string }) => Promise<string | null>
+  onDelete?: () => Promise<string | null>
 }
 
 function UserDialog({ user, onClose, onSave, onDelete }: UserDialogProps) {
-  const [nombre, setNombre] = useState(user?.nombre || '')
-  const [username, setUsername] = useState(user?.username || '')
+  const [nombre, setNombre] = useState(user?.nombre ?? '')
+  const [username, setUsername] = useState(user?.username ?? '')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<UserRole>(user?.role || 'mesero')
-  
-  const handleSubmit = () => {
-    if (nombre.trim() && username.trim() && (user || password.trim())) {
-      const userData: Partial<UserType> = {
-        nombre: nombre.trim(),
-        username: username.trim(),
-        role,
-      }
-      if (password.trim()) {
-        userData.password = password.trim()
-      }
-      onSave(userData)
+  const [role, setRole] = useState<UserRole>(user?.role ?? 'mesero')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async () => {
+    if (!nombre.trim() || !username.trim() || (!user && !password.trim())) return
+    setLoading(true)
+    setError(null)
+
+    const data: Partial<Profile> & { password?: string } = {
+      nombre: nombre.trim(),
+      username: username.trim(),
+      role,
     }
+    if (password.trim()) data.password = password.trim()
+
+    const err = await onSave(data)
+    if (err) setError(err)
+    setLoading(false)
   }
-  
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setLoading(true)
+    const err = await onDelete()
+    if (err) setError(err)
+    setLoading(false)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <Card className="w-full max-w-sm">
@@ -197,78 +288,76 @@ function UserDialog({ user, onClose, onSave, onDelete }: UserDialogProps) {
         <CardContent className="p-4 pt-2 space-y-3">
           <div>
             <Label className="text-xs">Nombre completo</Label>
-            <Input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Juan Perez"
-              className="h-9 text-sm"
-            />
+            <Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Juan Perez" className="h-9 text-sm" />
           </div>
-          
+
           <div>
             <Label className="text-xs">Usuario</Label>
             <Input
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={e => setUsername(e.target.value)}
               placeholder="juanperez"
               className="h-9 text-sm"
+              disabled={!!user} // username can't change (it's the auth email)
             />
           </div>
-          
+
           <div>
             <Label className="text-xs">
-              Contrasena {user && '(dejar vacio para mantener)'}
+              Contraseña {user && <span className="text-muted-foreground">(dejar vacío para mantener)</span>}
             </Label>
             <Input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="********"
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
               className="h-9 text-sm"
             />
           </div>
-          
+
           <div>
             <Label className="text-xs">Rol</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
+            <Select value={role} onValueChange={v => setRole(v as UserRole)}>
               <SelectTrigger className="h-9 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(ROLE_CONFIG) as UserRole[]).map((r) => {
-                  const config = ROLE_CONFIG[r]
-                  return (
-                    <SelectItem key={r} value={r}>
-                      <span className="flex items-center gap-1.5">
-                        {config.icon}
-                        {config.label}
-                      </span>
-                    </SelectItem>
-                  )
-                })}
+                {(Object.keys(ROLE_CONFIG) as UserRole[]).map(r => (
+                  <SelectItem key={r} value={r}>
+                    <span className="flex items-center gap-1.5">
+                      {ROLE_CONFIG[r].icon}
+                      {ROLE_CONFIG[r].label}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          
+
+          {error && (
+            <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{error}</p>
+          )}
+
           <div className="flex gap-2 pt-2">
             {onDelete && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="h-9 text-xs text-destructive border-destructive hover:bg-destructive/10 bg-transparent"
-                onClick={onDelete}
+                onClick={handleDelete}
+                disabled={loading}
               >
                 <Trash2 className="h-3 w-3" />
               </Button>
             )}
-            <Button variant="outline" className="flex-1 h-9 text-xs bg-transparent" onClick={onClose}>
+            <Button variant="outline" className="flex-1 h-9 text-xs bg-transparent" onClick={onClose} disabled={loading}>
               Cancelar
             </Button>
-            <Button 
+            <Button
               className="flex-1 h-9 text-xs bg-primary"
               onClick={handleSubmit}
-              disabled={!nombre.trim() || !username.trim() || (!user && !password.trim())}
+              disabled={loading || !nombre.trim() || !username.trim() || (!user && !password.trim())}
             >
-              {user ? 'Guardar' : 'Agregar'}
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : user ? 'Guardar' : 'Agregar'}
             </Button>
           </div>
         </CardContent>

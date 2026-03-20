@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Edit2, ImageIcon } from 'lucide-react'
+import { Plus, Edit2, ImageIcon, FolderOpen } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,11 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { formatPrice, type MenuItem } from '@/lib/store'
 import { MenuItemDialog } from './menu-item-dialog'
+import { CategoryManager } from './category-manager'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export function MenuManager() {
   const { menuItems, updateMenuItem, categories } = useApp()
   const [showDialog, setShowDialog] = useState(false)
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
   
   const handleToggleAvailability = (item: MenuItem) => {
     updateMenuItem(item.id, { disponible: !item.disponible })
@@ -47,14 +50,48 @@ export function MenuManager() {
             {menuItems.length} platillos en total
           </p>
         </div>
-        <Button 
-          className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5" 
-          onClick={handleAdd}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Agregar
-        </Button>
+        <div className="flex gap-1.5">
+          <Button
+            variant="outline"
+            className="h-7 text-[10px] px-2.5 bg-transparent"
+            onClick={() => setShowCategoryManager(true)}
+          >
+            <FolderOpen className="h-3 w-3 mr-1" />
+            Categorias
+          </Button>
+          <Button
+            className="bg-primary text-primary-foreground h-7 text-[10px] px-2.5"
+            onClick={handleAdd}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Agregar
+          </Button>
+        </div>
       </div>
+
+      {/* Category Manager Dialog */}
+      <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              Administrar Categorias
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-2">
+            <CategoryManager />
+          </div>
+          <div className="shrink-0 pt-3 border-t border-border">
+            <Button
+              variant="outline"
+              className="w-full h-8 text-xs"
+              onClick={() => setShowCategoryManager(false)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       
       {/* Menu Items List */}
       <div>

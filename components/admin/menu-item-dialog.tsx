@@ -2,16 +2,14 @@
 
 import React from "react"
 import { useState } from 'react'
-import { X, Plus, Trash2, ImageIcon, Upload, Archive, AlertTriangle, FolderOpen } from 'lucide-react'
+import { X, Plus, Trash2, ImageIcon, Upload, Archive, AlertTriangle } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient } from '@/lib/store'
-import { CategoryManager } from './category-manager'
 
 interface MenuItemDialogProps {
   item: MenuItem | null
@@ -22,7 +20,6 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients } = useApp()
   const [nombre, setNombre] = useState(item?.nombre || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [descripcion, setDescripcion] = useState(item?.descripcion || '')
   const [precio, setPrecio] = useState(item?.precio.toString() || '')
   const [categoria, setCategoria] = useState(item?.categoria || categories[0]?.id || '')
@@ -91,9 +88,9 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
     }
     
     if (item) {
-      updateMenuItem(item.id, data, imageFile)
+      updateMenuItem(item.id, data, imageFile ?? undefined)
     } else {
-      addMenuItem(data, imageFile)
+      addMenuItem(data, imageFile ?? undefined)
     }
     
     onClose()
@@ -193,60 +190,20 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
           </div>
           
           <div>
-  <Label htmlFor="categoria" className="text-xs">Categoria</Label>
-
-  <div className="flex gap-1.5">
-    <Select value={categoria} onValueChange={(v) => setCategoria(v)}>
-      <SelectTrigger className="h-8 text-sm flex-1">
-        <SelectValue />
-      </SelectTrigger>
-
-      <SelectContent>
-        {activeCategories.map((cat) => (
-          <SelectItem key={cat.id} value={cat.id} className="text-sm">
-            {cat.nombre}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-
-    <Button
-      type="button"
-      variant="outline"
-      size="icon"
-      className="h-8 w-8 shrink-0"
-      onClick={() => setShowCategoryManager(true)}
-      title="Administrar categorias"
-    >
-      <FolderOpen className="h-4 w-4" />
-    </Button>
-  </div>
-
-  <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
-    <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
-      <DialogHeader className="shrink-0">
-        <DialogTitle className="text-sm flex items-center gap-2">
-          <FolderOpen className="h-4 w-4" />
-          Administrar Categorias
-        </DialogTitle>
-      </DialogHeader>
-
-      <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-2">
-        <CategoryManager />
-      </div>
-
-      <div className="shrink-0 pt-3 border-t border-border">
-        <Button
-          variant="outline"
-          className="w-full h-8 text-xs"
-          onClick={() => setShowCategoryManager(false)}
-        >
-          Cerrar
-        </Button>
-      </div>
-    </DialogContent>
-  </Dialog>
-</div>
+            <Label htmlFor="categoria" className="text-xs">Categoria</Label>
+            <Select value={categoria} onValueChange={(v) => setCategoria(v)}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {activeCategories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id} className="text-sm">
+                    {cat.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           
           <div>
             <Label htmlFor="cocina" className="text-xs">Estacion de cocina</Label>

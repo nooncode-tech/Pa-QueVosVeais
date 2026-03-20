@@ -78,7 +78,7 @@ export function DailyClosing() {
     
     // Sales by payment method - use payments array (persisted) + any active paid sessions
     const salesByPayment = dayPayments.reduce((acc, payment) => {
-      acc[payment.metodo] = (acc[payment.metodo] || 0) + payment.total
+      acc[payment.paymentMethod ?? 'efectivo'] = (acc[payment.paymentMethod ?? 'efectivo'] || 0) + payment.total
       return acc
     }, {} as Record<string, number>)
     

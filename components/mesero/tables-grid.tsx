@@ -24,8 +24,7 @@ export function TablesGrid({ onSelectTable }: TablesGridProps) {
     const tableCalls = pendingCalls.filter(c => c.mesa === mesa)
     
     // Check for payment requested
-    const paymentRequested = session?.paymentStatus === 'solicitado' || 
-                            session?.billStatus === 'solicitada' ||
+    const paymentRequested = session?.paymentStatus === 'solicitado' ||
                             tableCalls.some(c => c.tipo === 'cuenta')
     
     // Check for attention calls

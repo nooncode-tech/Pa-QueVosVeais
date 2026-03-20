@@ -31,8 +31,6 @@ export function BillDialog({ sessionId, onClose }: BillDialogProps) {
   
   const [descuento, setDescuento] = useState(session?.descuento?.toString() || '0')
   const [motivoDescuento, setMotivoDescuento] = useState('')
-  const promoDelDia = config?.promoDelDia ?? 15
-
 const quickDiscounts = [
   { label: "Seguirnos", percent: 10 },
   { label: "Cliente frecuente", percent: 5 },

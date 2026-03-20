@@ -19,7 +19,7 @@ const DEFAULT_METODOS_PAGO = {
 }
 
 export function ConfigManager() {
-  const { config, updateConfig, emergencyCloseAllTables, emergencyCloseTables, tableSessions, orders } = useApp()
+  const { config, updateConfig, emergencyCloseTables, tableSessions, orders } = useApp()
   const [showEmergencyConfirm, setShowEmergencyConfirm] = useState(false)
   const [selectedTables, setSelectedTables] = useState<number[]>([])
   

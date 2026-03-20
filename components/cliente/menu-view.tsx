@@ -54,7 +54,7 @@ export function MenuView({
 
   const getItemAvailability = (item: MenuItem) => {
     if (!item.disponible) {
-      return { available: false, maxPortions: 0 }
+      return { canPrepare: false, maxPortions: 0 }
     }
     return canPrepareItem(item, ingredients)
   }

@@ -540,8 +540,11 @@ function InventoryHistoryDialog({ adjustments, ingredients, users, onClose }: In
             
             {filteredAdjustments.length === 0 && (
               <div className="text-center py-8">
-                <History className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-xs text-muted-foreground">No hay ajustes en este periodo</p>
+                <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-secondary flex items-center justify-center">
+                  <Package className="h-7 w-7 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium text-foreground">Sin ajustes</p>
+                <p className="text-xs text-muted-foreground mt-1">No hay ajustes registrados en este periodo</p>
               </div>
             )}
           </div>
