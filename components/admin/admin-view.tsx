@@ -3,11 +3,11 @@
 import React from 'react'
 import { useState } from 'react'
 import Image from 'next/image'
-import { 
-  Package, 
-  Archive, 
-  Users, 
-  Settings, 
+import {
+  Package,
+  Archive,
+  Users,
+  Settings,
   TrendingUp,
   QrCode,
   Truck,
@@ -19,7 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
-  Cog
+  Cog,
+  ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,9 +45,10 @@ import { RefundsManager } from './refunds-manager'
 import { DailyClosing } from './daily-closing'
 import { TableHistory } from './table-history'
 import { AuditLogViewer } from './audit-log-viewer'
+import { OrdersHistory } from './orders-history'
 import { useApp } from '@/lib/context'
 
-type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit'
+type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history'
 
 interface AdminViewProps {
   onBack: () => void
@@ -82,6 +84,7 @@ export function AdminView({ onBack }: AdminViewProps) {
         { id: 'reports', label: 'Reportes', icon: <TrendingUp className="h-5 w-5" /> },
         { id: 'closing', label: 'Corte de Caja', icon: <Receipt className="h-5 w-5" /> },
         { id: 'orders', label: 'Pedidos', icon: <Package className="h-5 w-5" />, badge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined },
+        { id: 'orders-history', label: 'Historial Pedidos', icon: <ClipboardList className="h-5 w-5" /> },
       ]
     },
     {
@@ -172,6 +175,7 @@ export function AdminView({ onBack }: AdminViewProps) {
           {screen === 'reports' && <ReportsManager />}
           {screen === 'closing' && <DailyClosing />}
           {screen === 'orders' && <OrdersManager />}
+          {screen === 'orders-history' && <OrdersHistory />}
           {screen === 'menu' && <MenuManager />}
           {screen === 'inventory' && <InventoryManager />}
           {screen === 'delivery' && <DeliveryZonesManager />}
@@ -367,12 +371,14 @@ export function AdminView({ onBack }: AdminViewProps) {
             {screen === 'reports' && <ReportsManager />}
             {screen === 'closing' && <DailyClosing />}
             {screen === 'orders' && <OrdersManager />}
+            {screen === 'orders-history' && <OrdersHistory />}
             {screen === 'menu' && <MenuManager />}
             {screen === 'inventory' && <InventoryManager />}
             {screen === 'delivery' && <DeliveryZonesManager />}
             {screen === 'refunds' && <RefundsManager />}
             {screen === 'qr' && <QRManager />}
             {screen === 'history' && <TableHistory />}
+            {screen === 'audit' && <AuditLogViewer />}
             {screen === 'users' && <UsersManager />}
             {screen === 'config' && <ConfigManager />}
           </div>

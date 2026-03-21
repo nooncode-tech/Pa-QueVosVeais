@@ -50,6 +50,8 @@ import {
   getDeliveryZoneCost,
 } from './store'
 
+import { playNewOrderSound, playWaiterCallSound } from './sounds'
+
 async function uploadMenuImage(file: File): Promise<string | null> {
   const fileName = `${Date.now()}-${file.name}`
   const { error } = await supabase.storage.from('menu-images').upload(fileName, file)
@@ -245,6 +247,7 @@ function mapOrder(row: Record<string, unknown>): Order {
     tiempoInicioPreparacion: row.tiempo_inicio_preparacion ? new Date(row.tiempo_inicio_preparacion as string) : undefined,
     tiempoFinPreparacion: row.tiempo_fin_preparacion ? new Date(row.tiempo_fin_preparacion as string) : undefined,
     canceladoAt: row.cancelado_at ? new Date(row.cancelado_at as string) : undefined,
+    repartidorId: (row.repartidor_id as string) ?? undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   }
@@ -608,6 +611,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const cargarWaiterCalls = async () => {
+    const since = new Date()
+    since.setHours(0, 0, 0, 0) // only today's calls
+    const { data, error } = await supabase
+      .from('waiter_calls')
+      .select('*')
+      .eq('atendido', false)
+      .gte('created_at', since.toISOString())
+      .order('created_at')
+    if (error) { console.error('Error cargando llamadas:', error); return }
+    if (data) {
+      const calls: WaiterCall[] = data.map(row => ({
+        id: row.id as string,
+        mesa: row.mesa as number,
+        tipo: row.tipo as WaiterCall['tipo'],
+        mensaje: (row.mensaje as string) ?? undefined,
+        atendido: row.atendido as boolean,
+        atendidoPor: (row.atendido_por as string) ?? undefined,
+        createdAt: new Date(row.created_at as string),
+        atendidoAt: row.atendido_at ? new Date(row.atendido_at as string) : undefined,
+      }))
+      setState(prev => ({ ...prev, waiterCalls: calls }))
+    }
+  }
+
   cargarMenu()
   cargarCategorias()
   cargarOrders()
@@ -618,6 +646,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   cargarReembolsos()
   cargarConfig()
   cargarTables()
+  cargarWaiterCalls()
 
 }, [])
 
@@ -666,12 +695,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // ── Orders Realtime ─────────────────────────────────────────────────────
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         const order = mapOrder(payload.new as Record<string, unknown>)
-        setState(prev => ({
-          ...prev,
-          orders: prev.orders.some(o => o.id === order.id)
-            ? prev.orders.map(o => o.id === order.id ? order : o)
-            : [...prev.orders, order],
-        }))
+        setState(prev => {
+          if (prev.orders.some(o => o.id === order.id)) {
+            return { ...prev, orders: prev.orders.map(o => o.id === order.id ? order : o) }
+          }
+          if (prev.config.sonidoNuevosPedidos) playNewOrderSound()
+          return { ...prev, orders: [...prev.orders, order] }
+        })
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
         const order = mapOrder(payload.new as Record<string, unknown>)
@@ -777,28 +807,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const deletedId = (payload.old as Record<string, unknown>).id as string
         setState(prev => ({ ...prev, tables: prev.tables.filter(t => t.id !== deletedId) }))
       })
+      // ── Waiter Calls Realtime ────────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'waiter_calls' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const call: WaiterCall = {
+          id: row.id as string,
+          mesa: row.mesa as number,
+          tipo: row.tipo as WaiterCall['tipo'],
+          mensaje: (row.mensaje as string) ?? undefined,
+          atendido: row.atendido as boolean,
+          atendidoPor: (row.atendido_por as string) ?? undefined,
+          createdAt: new Date(row.created_at as string),
+          atendidoAt: row.atendido_at ? new Date(row.atendido_at as string) : undefined,
+        }
+        setState(prev => {
+          if (prev.waiterCalls.some(c => c.id === call.id)) return prev
+          playWaiterCallSound()
+          return { ...prev, waiterCalls: [...prev.waiterCalls, call] }
+        })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'waiter_calls' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        setState(prev => ({
+          ...prev,
+          waiterCalls: prev.waiterCalls.map(c =>
+            c.id === (row.id as string)
+              ? {
+                  ...c,
+                  atendido: row.atendido as boolean,
+                  atendidoPor: (row.atendido_por as string) ?? undefined,
+                  atendidoAt: row.atendido_at ? new Date(row.atendido_at as string) : undefined,
+                }
+              : c
+          ),
+        }))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  // Save state to localStorage after hydration
+  // Save lightweight state to localStorage after hydration
+  // orders, tableSessions, menuItems, categories, ingredients are all in Supabase — exclude them
   useEffect(() => {
-  if (isHydrated) {
+    if (!isHydrated) return
     isWritingRef.current = true
 
     const stateToSave = {
-      ...state,
-      menuItems: state.menuItems
+      config: state.config,
+      users: state.users,
+      rewards: state.rewards,
+      appliedRewards: state.appliedRewards,
+      deliveryZones: state.deliveryZones,
+      qrTokens: state.qrTokens,
+      cart: state.cart,
+      currentTable: state.currentTable,
+      currentUser: state.currentUser,
+      currentSessionId: state.currentSessionId,
     }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
 
-    setTimeout(() => {
-      isWritingRef.current = false
-    }, 0)
-  }
-}, [state, isHydrated])
+    setTimeout(() => { isWritingRef.current = false }, 0)
+  }, [state, isHydrated])
   
   // Listen for changes from other tabs only
   useEffect(() => {
@@ -1504,41 +1575,56 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
 
   // ============ EMERGENCY ACTIONS ============
   const emergencyCloseAllTables = useCallback(() => {
+    let activeSessionIds: string[] = []
     setState(prev => {
-      // Gather all mesas that have active sessions
-      const activeMesas = new Set(prev.tableSessions.filter(s => s.activa).map(s => s.mesa))
+      const activeSessions = prev.tableSessions.filter(s => s.activa)
+      const activeMesas = new Set(activeSessions.map(s => s.mesa))
+      activeSessionIds = activeSessions.map(s => s.id)
 
       return {
         ...prev,
-        // Remove all active sessions (keeps inactive ones for history)
         tableSessions: prev.tableSessions.filter(s => !s.activa),
-        // Remove orders associated with active tables
         orders: prev.orders.filter(o => !o.mesa || !activeMesas.has(o.mesa)),
-        // Invalidate QR tokens for active tables
         qrTokens: prev.qrTokens.map(t =>
           activeMesas.has(t.mesa) && t.activo ? { ...t, activo: false } : t
         ),
-        // Dismiss waiter calls for active tables
         waiterCalls: prev.waiterCalls.filter(c => !activeMesas.has(c.mesa) || c.atendido),
-        // Clear current table context
         currentTable: null,
         currentSessionId: null,
         cart: [],
       }
     })
+
+    if (activeSessionIds.length > 0) {
+      supabase.from('table_sessions')
+        .update({ activa: false, bill_status: 'cerrada' })
+        .in('id', activeSessionIds)
+        .then(({ error }) => { if (error) console.error('Error cerrando sesiones emergency:', error) })
+    }
   }, [])
 
   const emergencyCloseTables = useCallback((tables: number[]) => {
     const mesasSet = new Set(tables)
-    setState(prev => ({
-      ...prev,
-      tableSessions: prev.tableSessions.filter(s => !s.activa || !mesasSet.has(s.mesa)),
-      orders: prev.orders.filter(o => !o.mesa || !mesasSet.has(o.mesa)),
-      qrTokens: prev.qrTokens.map(t =>
-        mesasSet.has(t.mesa) && t.activo ? { ...t, activo: false } : t
-      ),
-      waiterCalls: prev.waiterCalls.filter(c => !mesasSet.has(c.mesa) || c.atendido),
-    }))
+    let closedIds: string[] = []
+    setState(prev => {
+      closedIds = prev.tableSessions.filter(s => s.activa && mesasSet.has(s.mesa)).map(s => s.id)
+      return {
+        ...prev,
+        tableSessions: prev.tableSessions.filter(s => !s.activa || !mesasSet.has(s.mesa)),
+        orders: prev.orders.filter(o => !o.mesa || !mesasSet.has(o.mesa)),
+        qrTokens: prev.qrTokens.map(t =>
+          mesasSet.has(t.mesa) && t.activo ? { ...t, activo: false } : t
+        ),
+        waiterCalls: prev.waiterCalls.filter(c => !mesasSet.has(c.mesa) || c.atendido),
+      }
+    })
+
+    if (closedIds.length > 0) {
+      supabase.from('table_sessions')
+        .update({ activa: false, bill_status: 'cerrada' })
+        .in('id', closedIds)
+        .then(({ error }) => { if (error) console.error('Error cerrando sesiones:', error) })
+    }
   }, [])
   
   const getSessionBill = useCallback((sessionId: string): TableSession | undefined => {
@@ -1555,20 +1641,34 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       atendido: false,
       createdAt: new Date(),
     }
-    
+
     setState(prev => ({
       ...prev,
       waiterCalls: [...prev.waiterCalls, call],
     }))
+
+    supabase.from('waiter_calls').insert({
+      id: call.id,
+      mesa: call.mesa,
+      tipo: call.tipo,
+      mensaje: call.mensaje ?? null,
+      atendido: false,
+    }).then(({ error }) => { if (error) console.error('Error creando llamada de mesero:', error) })
   }, [])
   
   const markCallAttended = useCallback((callId: string, userId: string) => {
+    const now = new Date()
     setState(prev => ({
       ...prev,
       waiterCalls: prev.waiterCalls.map(c =>
-        c.id === callId ? { ...c, atendido: true, atendidoPor: userId, atendidoAt: new Date() } : c
+        c.id === callId ? { ...c, atendido: true, atendidoPor: userId, atendidoAt: now } : c
       ),
     }))
+
+    supabase.from('waiter_calls')
+      .update({ atendido: true, atendido_por: userId, atendido_at: now.toISOString() })
+      .eq('id', callId)
+      .then(({ error }) => { if (error) console.error('Error marcando llamada atendida:', error) })
   }, [])
   
   const getPendingCalls = useCallback((): WaiterCall[] => {
@@ -1602,19 +1702,27 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       createdAt: new Date(),
     }
     
+    const newDescuento = session.descuento + descuento
+    const newTotal = session.subtotal + session.impuestos + session.propina - newDescuento
+
     setState(prev => ({
       ...prev,
       appliedRewards: [...prev.appliedRewards, applied],
       tableSessions: prev.tableSessions.map(s =>
-        s.id === sessionId ? { 
-          ...s, 
-          descuento: s.descuento + descuento, 
+        s.id === sessionId ? {
+          ...s,
+          descuento: newDescuento,
           descuentoMotivo: reward.nombre,
-          total: s.subtotal + s.impuestos + s.propina - (s.descuento + descuento),
+          total: newTotal,
         } : s
       ),
     }))
-    
+
+    supabase.from('table_sessions')
+      .update({ descuento: newDescuento, descuento_motivo: reward.nombre, total: newTotal })
+      .eq('id', sessionId)
+      .then(({ error }) => { if (error) console.error('Error aplicando recompensa:', error) })
+
     return true
   }, [state.rewards, state.tableSessions, state.appliedRewards])
   
@@ -2162,28 +2270,34 @@ const addMenuItem = useCallback(
       }
     })
     
+    supabase.from('orders')
+      .update({ items, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .then(({ error }) => { if (error) console.error('Error actualizando items del pedido:', error) })
+
     return true
   }, [state.orders])
-  
+
   const markOrderDelivered = useCallback((orderId: string) => {
+  const now = new Date()
   setState(prev => {
     const order = prev.orders.find(o => o.id === orderId)
     if (!order || !order.mesa) return prev
 
     const updatedOrders = prev.orders.map(o =>
       o.id === orderId
-        ? { ...o, status: 'entregado' as OrderStatus, updatedAt: new Date() }
+        ? { ...o, status: 'entregado' as OrderStatus, updatedAt: now }
         : o
     )
 
     // Sync session.orders with updated orders
     const updatedSessions = prev.tableSessions.map(session => {
       if (session.mesa !== order.mesa || !session.activa) return session
-      
-      const syncedOrders = session.orders.map(o => 
+
+      const syncedOrders = session.orders.map(o =>
         updatedOrders.find(uo => uo.id === o.id) || o
       )
-      
+
       return { ...session, orders: syncedOrders }
     })
 
@@ -2193,6 +2307,11 @@ const addMenuItem = useCallback(
       tableSessions: updatedSessions,
     }
   })
+
+  supabase.from('orders')
+    .update({ status: 'entregado', updated_at: now.toISOString() })
+    .eq('id', orderId)
+    .then(({ error }) => { if (error) console.error('Error marcando pedido entregado:', error) })
 }, [])
 
   

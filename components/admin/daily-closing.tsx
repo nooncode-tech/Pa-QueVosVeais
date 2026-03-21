@@ -1,69 +1,148 @@
 'use client'
 
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useApp } from '@/lib/context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  DollarSign, 
-  ShoppingBag, 
-  Clock, 
-  TrendingUp, 
-  Download, 
+import {
+  DollarSign,
+  ShoppingBag,
+  Clock,
+  TrendingUp,
+  Download,
   Printer,
   CreditCard,
   Banknote,
   XCircle,
-  RotateCcw,
-  Calendar
+  Loader2,
 } from 'lucide-react'
 import {
   formatPrice,
-  formatDate,
   calculateOrderTotal,
   getChannelLabel,
   getPaymentMethodLabel,
   type Order,
+  type TableSession,
+  type Refund,
   type PaymentMethod,
+  type OrderItem,
 } from '@/lib/store'
-import { useReactToPrint } from 'react-to-print'
+import { supabase } from '@/lib/supabase'
 
 export function DailyClosing() {
-  const { orders, tableSessions, refunds, getPaymentsForDate, logAction } = useApp()
+  const { logAction } = useApp()
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     return today.toISOString().split('T')[0]
   })
-  const printRef = useRef<HTMLDivElement>(null)
-  
-  // Filter data by selected date
-  const dayOrders = useMemo(() => {
-    return orders.filter(order => {
-      const orderDate = new Date(order.createdAt).toISOString().split('T')[0]
-      return orderDate === selectedDate
-    })
-  }, [orders, selectedDate])
-  
-  const dayRefunds = useMemo(() => {
-    return refunds.filter(refund => {
-      const refundDate = new Date(refund.createdAt).toISOString().split('T')[0]
-      return refundDate === selectedDate
-    })
-  }, [refunds, selectedDate])
-  
-  // Get payments for the selected date (these persist after session closes)
-  const dayPayments = useMemo(() => {
-    return getPaymentsForDate(new Date(selectedDate))
-  }, [getPaymentsForDate, selectedDate])
-  
-  // Also keep daySessions for backward compatibility with any active sessions
-  const daySessions = useMemo(() => {
-    return tableSessions.filter(session => {
-      const sessionDate = new Date(session.createdAt).toISOString().split('T')[0]
-      return sessionDate === selectedDate && session.paymentStatus === 'pagado'
-    })
-  }, [tableSessions, selectedDate])
+
+  // ── Load data from Supabase for any selected date ──────────────────────────
+  const [loading, setLoading] = useState(false)
+  const [dayOrders, setDayOrders] = useState<Order[]>([])
+  const [daySessions, setDaySessions] = useState<TableSession[]>([])
+  const [dayRefunds, setDayRefunds] = useState<Refund[]>([])
+
+  useEffect(() => {
+    const loadDay = async () => {
+      setLoading(true)
+      const start = `${selectedDate}T00:00:00.000Z`
+      const end   = `${selectedDate}T23:59:59.999Z`
+
+      const [ordersRes, sessionsRes, refundsRes] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('*')
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .order('created_at'),
+        supabase
+          .from('table_sessions')
+          .select('*')
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .order('created_at'),
+        supabase
+          .from('refunds')
+          .select('*')
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .order('created_at'),
+      ])
+
+      if (ordersRes.data) {
+        setDayOrders(ordersRes.data.map(row => ({
+          id: row.id as string,
+          numero: (row.numero as number) ?? 0,
+          canal: row.canal as Order['canal'],
+          mesa: (row.mesa as number) ?? undefined,
+          items: (row.items as OrderItem[]) ?? [],
+          status: row.status as Order['status'],
+          cocinaAStatus: (row.cocina_a_status as Order['cocinaAStatus']) ?? 'en_cola',
+          cocinaBStatus: (row.cocina_b_status as Order['cocinaBStatus']) ?? 'en_cola',
+          nombreCliente: (row.nombre_cliente as string) ?? undefined,
+          telefono: (row.telefono as string) ?? undefined,
+          direccion: (row.direccion as string) ?? undefined,
+          zonaReparto: (row.zona_reparto as string) ?? undefined,
+          costoEnvio: row.costo_envio ? Number(row.costo_envio) : undefined,
+          cancelado: (row.cancelado as boolean) ?? false,
+          cancelReason: row.cancel_reason as Order['cancelReason'],
+          cancelMotivo: (row.cancel_motivo as string) ?? undefined,
+          tiempoInicioPreparacion: row.tiempo_inicio_preparacion ? new Date(row.tiempo_inicio_preparacion as string) : undefined,
+          tiempoFinPreparacion: row.tiempo_fin_preparacion ? new Date(row.tiempo_fin_preparacion as string) : undefined,
+          createdAt: new Date(row.created_at as string),
+          updatedAt: new Date(row.updated_at as string),
+        })))
+      }
+
+      if (sessionsRes.data) {
+        setDaySessions(sessionsRes.data.map(row => ({
+          id: row.id as string,
+          mesa: row.mesa as number,
+          activa: row.activa as boolean,
+          orders: [],
+          createdAt: new Date(row.created_at as string),
+          expiresAt: row.expires_at ? new Date(row.expires_at as string) : new Date(),
+          deviceId: (row.device_id as string) ?? '',
+          billStatus: row.bill_status as TableSession['billStatus'],
+          subtotal: Number(row.subtotal) ?? 0,
+          impuestos: Number(row.impuestos) ?? 0,
+          propina: Number(row.propina) ?? 0,
+          descuento: Number(row.descuento) ?? 0,
+          descuentoMotivo: (row.descuento_motivo as string) ?? undefined,
+          total: Number(row.total) ?? 0,
+          paymentMethod: (row.payment_method as TableSession['paymentMethod']) ?? undefined,
+          paymentStatus: row.payment_status as TableSession['paymentStatus'],
+          paidAt: row.paid_at ? new Date(row.paid_at as string) : undefined,
+        })))
+      }
+
+      if (refundsRes.data) {
+        setDayRefunds(refundsRes.data.map(row => ({
+          id: row.id as string,
+          orderId: row.order_id as string,
+          sessionId: (row.session_id as string) ?? undefined,
+          monto: Number(row.monto),
+          motivo: row.motivo as string,
+          tipo: row.tipo as Refund['tipo'],
+          itemsReembolsados: (row.items_reembolsados as string[]) ?? undefined,
+          inventarioRevertido: row.inventario_revertido as boolean,
+          userId: row.user_id as string,
+          createdAt: new Date(row.created_at as string),
+        })))
+      }
+
+      setLoading(false)
+    }
+
+    loadDay()
+  }, [selectedDate])
+
+  // Paid sessions for the day (payment method breakdown)
+  const dayPayments = useMemo(
+    () => daySessions.filter(s => s.paymentStatus === 'pagado'),
+    [daySessions]
+  )
   
   // Calculate stats
   const stats = useMemo(() => {
@@ -78,18 +157,11 @@ export function DailyClosing() {
       return acc
     }, {} as Record<string, number>)
     
-    // Sales by payment method - use payments array (persisted) + any active paid sessions
+    // Sales by payment method from paid sessions
     const salesByPayment = dayPayments.reduce((acc, payment) => {
       acc[payment.paymentMethod ?? 'efectivo'] = (acc[payment.paymentMethod ?? 'efectivo'] || 0) + payment.total
       return acc
     }, {} as Record<string, number>)
-    
-    // Also add any active sessions that are paid (for current day live data)
-    daySessions.forEach(session => {
-      if (session.paymentMethod) {
-        salesByPayment[session.paymentMethod] = (salesByPayment[session.paymentMethod] || 0) + session.total
-      }
-    })
     
     // Top selling items
     const itemSales: Record<string, { name: string; quantity: number; revenue: number }> = {}
@@ -111,18 +183,9 @@ export function DailyClosing() {
     // Calculate totals - combine payments and active paid sessions
     const grossSales = completedOrders.reduce((sum, o) => sum + calculateOrderTotal(o.items), 0)
     
-    // Taxes and tips from persisted payments
-    const paymentsTax = dayPayments.reduce((sum, p) => sum + p.impuestos, 0)
-    const paymentsTips = dayPayments.reduce((sum, p) => sum + p.propina, 0)
-    
-    // Also from active sessions (live data)
-    const sessionsTax = daySessions.reduce((sum, s) => sum + s.impuestos, 0)
-    const sessionsTips = daySessions.reduce((sum, s) => sum + s.propina, 0)
-    const sessionsDiscounts = daySessions.reduce((sum, s) => sum + s.descuento, 0)
-    
-    const totalTax = paymentsTax + sessionsTax
-    const totalTips = paymentsTips + sessionsTips
-    const totalDiscounts = sessionsDiscounts // Note: discounts are factored into session.total before payment
+    const totalTax = dayPayments.reduce((sum, p) => sum + p.impuestos, 0)
+    const totalTips = dayPayments.reduce((sum, p) => sum + p.propina, 0)
+    const totalDiscounts = dayPayments.reduce((sum, p) => sum + p.descuento, 0)
     const totalRefunds = dayRefunds.reduce((sum, r) => sum + r.monto, 0)
     const netSales = grossSales - totalDiscounts - totalRefunds
     
@@ -157,7 +220,7 @@ export function DailyClosing() {
       salesByPayment,
       topItems,
     }
-  }, [dayOrders, daySessions, dayRefunds, dayPayments])
+  }, [dayOrders, dayRefunds, dayPayments])
   
   const handlePrint = useCallback(() => {
     logAction('imprimir_cierre', `Cierre diario impreso - ${selectedDate} - Ventas $${stats.netSales?.toFixed(2)}`, 'closing', selectedDate)
@@ -275,7 +338,10 @@ export function DailyClosing() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-foreground">Corte del Dia</h2>
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            Corte del Dia
+            {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </h2>
           <p className="text-xs text-muted-foreground">Resumen de operaciones</p>
         </div>
         <div className="flex items-center gap-2">
@@ -286,11 +352,11 @@ export function DailyClosing() {
             max={new Date().toISOString().split('T')[0]}
             className="h-8 px-2 text-xs border border-border rounded-md"
           />
-          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1 bg-transparent">
+          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1 bg-transparent" disabled={loading}>
             <Download className="h-3 w-3" />
             CSV
           </Button>
-          <Button size="sm" onClick={() => handlePrint()} className="gap-1">
+          <Button size="sm" onClick={() => handlePrint()} className="gap-1" disabled={loading}>
             <Printer className="h-3 w-3" />
             Imprimir
           </Button>
@@ -298,7 +364,7 @@ export function DailyClosing() {
       </div>
       
       {/* Printable content */}
-      <div ref={printRef} className="print:p-4">
+      <div className="print:p-4">
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
           <Card>
