@@ -30,7 +30,7 @@ import {
 import { useReactToPrint } from 'react-to-print'
 
 export function DailyClosing() {
-  const { orders, tableSessions, refunds, getPaymentsForDate } = useApp()
+  const { orders, tableSessions, refunds, getPaymentsForDate, logAction } = useApp()
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     return today.toISOString().split('T')[0]
@@ -160,6 +160,7 @@ export function DailyClosing() {
   }, [dayOrders, daySessions, dayRefunds, dayPayments])
   
   const handlePrint = useCallback(() => {
+    logAction('imprimir_cierre', `Cierre diario impreso - ${selectedDate} - Ventas $${stats.netSales?.toFixed(2)}`, 'closing', selectedDate)
     const printWindow = window.open('', '_blank', 'width=800,height=600')
     if (!printWindow) return
 
@@ -239,7 +240,7 @@ export function DailyClosing() {
     printWindow.document.close()
     printWindow.focus()
     setTimeout(() => { printWindow.print(); printWindow.close() }, 300)
-  }, [selectedDate, stats])
+  }, [selectedDate, stats, logAction])
   
   const exportCSV = () => {
     const headers = ['Metrica', 'Valor']

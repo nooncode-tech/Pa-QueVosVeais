@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle, Volume2, VolumeX, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle, Volume2, VolumeX, ChevronsLeft, ChevronsRight, Printer } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -578,6 +578,21 @@ interface OrderCardProps {
 }
 
 function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onComplete, priorityIndex, large, isNew }: OrderCardProps) {
+  const handlePrintTicket = () => {
+    const w = window.open('', '_blank', 'width=400,height=500')
+    if (!w) return
+    const itemRows = items.map(item => {
+      let html = `<div style="border-bottom:1px solid #ccc;padding:4px 0"><div style="display:flex;gap:8px"><span style="font-size:18px;font-weight:900;min-width:32px">${item.cantidad}x</span><div><p style="font-weight:700;font-size:14px;text-transform:uppercase;margin:0">${item.menuItem.nombre}</p>${item.extras?.length ? `<p style="font-size:11px;margin:2px 0 0 0;color:#555">+ ${item.extras.map((e: {nombre:string}) => e.nombre).join(', ')}</p>` : ''}${item.notas ? `<p style="font-size:11px;margin:2px 0 0 0;font-weight:700;color:#b45309">*** ${item.notas} ***</p>` : ''}</div></div></div>`
+      return html
+    }).join('')
+    const canalLabel = order.canal === 'mesa' ? 'MESA' : order.canal === 'delivery' ? 'DELIVERY' : 'PARA LLEVAR'
+    const hora = new Date(order.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda #${order.numero}</title><style>body{font-family:monospace;width:80mm;margin:0;padding:8px}@media print{body{width:80mm}}</style></head><body><div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px"><h1 style="margin:0;font-size:24px">COMANDA</h1></div><div style="border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700"><span>#${order.numero}</span><span>${hora}</span></div><div style="display:flex;justify-content:space-between"><span style="font-weight:700">${canalLabel}</span>${order.mesa ? `<span>Mesa: ${order.mesa}</span>` : ''}</div>${order.nombreCliente ? `<p style="margin:4px 0 0;font-weight:700">${order.nombreCliente}</p>` : ''}</div><div style="margin-bottom:8px">${itemRows}</div><div style="text-align:center;border-top:2px dashed #000;padding-top:8px"><p style="margin:0;font-size:16px">Total items: <strong>${items.reduce((s, i) => s + i.cantidad, 0)}</strong></p>${order.canal === 'delivery' && order.direccion ? `<p style="margin:8px 0 0;font-size:11px;border:1px solid #000;padding:4px">DELIVERY: ${order.direccion}</p>` : ''}</div><div style="text-align:center;margin-top:8px;font-size:10px;color:#999">Impreso: ${new Date().toLocaleString('es-MX')}</div></body></html>`)
+    w.document.close()
+    w.focus()
+    setTimeout(() => { w.print(); w.close() }, 300)
+  }
+
   return (
     <Card className={cn(
       "border-2 transition-all relative",
@@ -625,14 +640,26 @@ function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onCo
               )}
             </div>
           </div>
-          <div className={cn(
-            "flex items-center gap-1 font-medium rounded-lg px-2 py-1",
-            large ? "text-sm" : "text-[10px]",
-            timeColor,
-            timeBgColor ? "bg-transparent" : "bg-muted/50"
-          )}>
-            <Clock className={cn(large ? "h-4 w-4" : "h-2.5 w-2.5")} />
-            {getTimeDiff(order.createdAt)}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handlePrintTicket}
+              className={cn(
+                "rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+                large ? "h-8 w-8" : "h-5 w-5"
+              )}
+              title="Imprimir comanda"
+            >
+              <Printer className={cn(large ? "h-4 w-4" : "h-2.5 w-2.5")} />
+            </button>
+            <div className={cn(
+              "flex items-center gap-1 font-medium rounded-lg px-2 py-1",
+              large ? "text-sm" : "text-[10px]",
+              timeColor,
+              timeBgColor ? "bg-transparent" : "bg-muted/50"
+            )}>
+              <Clock className={cn(large ? "h-4 w-4" : "h-2.5 w-2.5")} />
+              {getTimeDiff(order.createdAt)}
+            </div>
           </div>
         </div>
       </CardHeader>

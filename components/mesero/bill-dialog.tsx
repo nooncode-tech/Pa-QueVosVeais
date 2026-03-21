@@ -24,6 +24,7 @@ export function BillDialog({ sessionId, onClose }: BillDialogProps) {
   requestPayment,
   confirmPayment,
   config,
+  logAction,
 } = useApp()
 
   
@@ -314,6 +315,7 @@ const quickDiscounts = [
               variant="outline"
               className="flex-1 h-10 bg-transparent"
               onClick={() => {
+                logAction('imprimir_cuenta', `Cuenta impresa - Mesa ${session.mesa} - Total $${session.total?.toFixed(2)}`, 'session', sessionId)
                 const printWindow = window.open('', '_blank', 'width=400,height=600')
                 if (!printWindow) return
                 const orderLines = (session.orders || []).map(order =>

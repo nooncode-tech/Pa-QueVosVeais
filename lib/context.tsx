@@ -925,6 +925,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, cart: [] }))
   }, [])
   
+  // ============ AUDIT ============
+  const logAction = useCallback((accion: string, detalles: string, entidad: string, entidadId: string) => {
+    setState(prev => {
+      const log: AuditLog = {
+        id: generateId(),
+        userId: prev.currentUser?.id || 'anonymous',
+        accion,
+        detalles,
+        entidad,
+        entidadId,
+        createdAt: new Date(),
+      }
+      return { ...prev, auditLogs: [...prev.auditLogs, log] }
+    })
+  }, [])
+
   // ============ ORDER ACTIONS ============
   const createOrder = useCallback((
     canal: Channel,
@@ -1086,8 +1102,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (error) console.error('Error guardando pedido en Supabase:', error)
     })
 
+    const canalLabel = order.canal === 'mesa' ? `Mesa ${order.mesa}` : order.canal === 'delivery' ? `Delivery ${order.nombreCliente || ''}` : 'Para llevar'
+    logAction('crear_pedido', `Pedido #${order.numero} - ${canalLabel} - ${order.items.length} items`, 'order', order.id)
+
     return order
-  }, [state.cart, state.ingredients, state.config.impuestoPorcentaje, state.config.tiempoExpiracionSesionMinutos])
+  }, [state.cart, state.ingredients, state.config.impuestoPorcentaje, state.config.tiempoExpiracionSesionMinutos, logAction])
   
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
     const now = new Date()
@@ -1306,7 +1325,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     supabase.from('table_sessions').update({ activa: false, bill_status: 'cerrada' }).eq('id', sessionId).then(({ error }) => {
       if (error) console.error('Error cerrando sesión:', error)
     })
-  }, [])
+    logAction('cerrar_sesion', `Sesión cerrada sin cobro`, 'session', sessionId)
+  }, [logAction])
   
   const isSessionValid = useCallback((mesa: number): boolean => {
     const session = state.tableSessions.find(s => s.mesa === mesa && s.activa)
@@ -1361,7 +1381,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     supabase.from('table_sessions').update({ descuento, descuento_motivo: motivo, total }).eq('id', sessionId).then(({ error }) => {
       if (error) console.error('Error aplicando descuento:', error)
     })
-  }, [])
+    logAction('aplicar_descuento', `Descuento $${descuento} - ${motivo}`, 'session', sessionId)
+  }, [logAction])
 
   const setTipAmount = useCallback((sessionId: string, propina: number) => {
     let total = 0
@@ -1419,7 +1440,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }).eq('id', sessionId).then(({ error }) => {
       if (error) console.error('Error confirmando pago:', error)
     })
-  }, [])
+    logAction('confirmar_pago', `Pago confirmado`, 'session', sessionId)
+  }, [logAction])
 
 const resetSessionPaymentStatus = useCallback((sessionId: string) => {
   setState(prev => ({
@@ -1614,8 +1636,9 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
           : item
       )
     }))
+    logAction('actualizar_platillo', `Platillo actualizado: ${updates.nombre || itemId}`, 'menu_item', itemId)
   },
-  []
+  [logAction]
 )
   
 const addMenuItem = useCallback(
@@ -1662,9 +1685,10 @@ const addMenuItem = useCallback(
         ...prev,
         menuItems: [...prev.menuItems, nuevo]
       }))
+      logAction('crear_platillo', `Platillo creado: ${item.nombre} $${item.precio}`, 'menu_item', data[0].id)
     }
   },
-  []
+  [logAction]
 )
 
   const deleteMenuItem = useCallback(async (itemId: string) => {
@@ -1683,8 +1707,9 @@ const addMenuItem = useCallback(
     ...prev,
     menuItems: prev.menuItems.filter(item => item.id !== itemId)
   }))
+  logAction('eliminar_platillo', `Platillo eliminado`, 'menu_item', itemId)
 
-}, [])
+}, [logAction])
   
   const getAvailableMenuItems = useCallback((): MenuItem[] => {
     return state.menuItems.filter(item => {
@@ -1717,9 +1742,10 @@ const addMenuItem = useCallback(
       }
       return { ...prev, categories: [...prev.categories, nueva] }
     })
+    logAction('crear_categoria', `Categoría creada: ${nombre}`, 'category', data[0].id)
   }
 
-}, [])
+}, [logAction])
   
   const updateCategory = useCallback(async (categoryId: string, updates: Partial<MenuCategory>) => {
     // Persist name changes to Supabase (only 'name' column exists in DB)
@@ -1766,8 +1792,9 @@ const addMenuItem = useCallback(
     ...prev,
     categories: prev.categories.filter(cat => cat.id !== categoryId),
   }))
+  logAction('eliminar_categoria', `Categoría eliminada`, 'category', categoryId)
 
-}, [])
+}, [logAction])
   
   const reorderCategories = useCallback((categoryIds: string[]) => {
     setState(prev => ({
@@ -1797,7 +1824,8 @@ const addMenuItem = useCallback(
       ubicacion: newTable.ubicacion ?? null,
       activa: true,
     }).then(({ error }) => { if (error) console.error('Error guardando mesa:', error) })
-  }, [])
+    logAction('crear_mesa', `Mesa ${numero} creada (cap. ${capacidad})`, 'table', newTable.id)
+  }, [logAction])
 
   const updateTable = useCallback((tableId: string, updates: Partial<TableConfig>) => {
     setState(prev => ({
@@ -1820,7 +1848,8 @@ const addMenuItem = useCallback(
     setState(prev => ({ ...prev, tables: prev.tables.filter(table => table.id !== tableId) }))
     supabase.from('tables_config').delete().eq('id', tableId)
       .then(({ error }) => { if (error) console.error('Error eliminando mesa:', error) })
-  }, [])
+    logAction('eliminar_mesa', `Mesa eliminada`, 'table', tableId)
+  }, [logAction])
   
   const getActiveTables = useCallback((): TableConfig[] => {
     return state.tables.filter(t => t.activa).sort((a, b) => a.numero - b.numero)
@@ -1881,7 +1910,8 @@ const addMenuItem = useCallback(
     }]).then(({ error }) => {
       if (error) console.error('Error creando ingrediente:', error)
     })
-  }, [])
+    logAction('crear_ingrediente', `Ingrediente creado: ${ingredient.nombre}`, 'ingredient', newId)
+  }, [logAction])
 
   const adjustInventory = useCallback((ingredientId: string, tipo: 'entrada' | 'salida' | 'merma' | 'ajuste', cantidad: number, motivo: string) => {
     const userId = state.currentUser?.id || 'system'
@@ -1932,7 +1962,8 @@ const addMenuItem = useCallback(
     supabase.from('ingredients').update({ stock_actual: newStock }).eq('id', ingredientId).then(({ error }) => {
       if (error) console.error('Error actualizando stock:', error)
     })
-  }, [state.currentUser])
+    logAction('ajuste_inventario', `${tipo}: ${cantidad} - ${motivo}`, 'ingredient', ingredientId)
+  }, [state.currentUser, logAction])
   
   const getLowStockIngredients = useCallback((): Ingredient[] => {
     return state.ingredients.filter(ing => ing.stockActual <= ing.stockMinimo)
@@ -1959,22 +1990,6 @@ const addMenuItem = useCallback(
   }, [])
   
   // ============ AUDIT ============
-  const logAction = useCallback((accion: string, detalles: string, entidad: string, entidadId: string) => {
-    const log: AuditLog = {
-      id: generateId(),
-      userId: state.currentUser?.id || 'anonymous',
-      accion,
-      detalles,
-      entidad,
-      entidadId,
-      createdAt: new Date(),
-    }
-    
-    setState(prev => ({
-      ...prev,
-      auditLogs: [...prev.auditLogs, log],
-    }))
-  }, [state.currentUser])
   
   // ============ ORDER CANCEL/EDIT ACTIONS ============
   const cancelOrder = useCallback((orderId: string, reason: CancelReason, motivo?: string, userId?: string): boolean => {
@@ -2033,8 +2048,10 @@ const addMenuItem = useCallback(
       if (error) console.error('Error eliminando pedido en Supabase:', error)
     })
 
+    logAction('cancelar_pedido', `Pedido cancelado - Razón: ${reason}${motivo ? ` (${motivo})` : ''}`, 'order', orderId)
+
     return true
-  }, [state.orders, state.ingredients])
+  }, [state.orders, state.ingredients, logAction])
   
   const updateOrderItems = useCallback((orderId: string, items: OrderItem[]): boolean => {
     const order = state.orders.find(o => o.id === orderId)
@@ -2233,9 +2250,10 @@ const addMenuItem = useCallback(
     }).then(({ error }) => {
       if (error) console.error('Error guardando reembolso:', error)
     })
+    logAction('reembolso', `Reembolso ${tipo} $${monto} - ${motivo}`, 'order', orderId)
 
     return refund
-  }, [state.orders, state.ingredients, state.currentUser])
+  }, [state.orders, state.ingredients, state.currentUser, logAction])
   
   const getOrderRefunds = useCallback((orderId: string): Refund[] => {
     return state.refunds.filter(r => r.orderId === orderId)
