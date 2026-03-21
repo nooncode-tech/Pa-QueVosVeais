@@ -91,7 +91,7 @@ export function CartView({ mesa, onBack, onOrderConfirmed }: CartViewProps) {
                 {/* Image */}
                 <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-secondary">
   <img
-    src={item.menuItem.imagen || "/placeholder-food.png"}
+    src={item.menuItem.imagen || "/placeholder.svg"}
     alt={item.menuItem.nombre}
     className="w-full h-full object-cover"
   />

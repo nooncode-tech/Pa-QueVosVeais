@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -34,6 +35,7 @@ export function InventoryManager() {
   const [showCategoryDialog, setShowCategoryDialog] = useState(false)
   const [activeTab, setActiveTab] = useState<'all' | 'low'>('all')
   const [showDeleteBlockedDialog, setShowDeleteBlockedDialog] = useState<{ingredient: Ingredient, reasons: string[]} | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Ingredient | null>(null)
   
   const lowStockItems = getLowStockIngredients().filter(i => i.activo !== false)
   
@@ -69,8 +71,7 @@ export function InventoryManager() {
       return
     }
     
-    if (!confirm("¿Seguro que quieres eliminar este ingrediente?")) return
-    updateIngredient(ingredient.id, { activo: false })
+    setShowDeleteConfirm(ingredient)
   }
   
   const activeIngredients = ingredients.filter(i => i.activo !== false)
@@ -256,6 +257,27 @@ export function InventoryManager() {
         )}
       </div>
       
+      {/* Delete Confirm Dialog */}
+      <AlertDialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Eliminar ingrediente</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              ¿Seguro que quieres eliminar <strong>{showDeleteConfirm?.nombre}</strong>? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 text-xs bg-destructive hover:bg-destructive/90"
+              onClick={() => { if (showDeleteConfirm) { updateIngredient(showDeleteConfirm.id, { activo: false }); setShowDeleteConfirm(null) } }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Delete Blocked Dialog */}
       {showDeleteBlockedDialog && (
         <Dialog open onOpenChange={() => setShowDeleteBlockedDialog(null)}>
@@ -780,20 +802,27 @@ function AdjustStockDialog({
   
   const handleSubmit = () => {
     const cantidadNum = Number.parseFloat(cantidad)
-    
+
     // Validate motivo is required
     if (cantidadNum > 0 && !motivo.trim()) {
       setMotivoError(true)
       return
     }
-    
+
+    // Validate that salida/merma won't go below zero
+    if ((tipo === 'salida' || tipo === 'merma') && cantidadNum > ingredient.stockActual) {
+      setMotivoError(false)
+      alert(`Stock insuficiente. Stock actual: ${ingredient.stockActual.toFixed(2)} ${ingredient.unidad}`)
+      return
+    }
+
     const finalCategoria = showNewCategory && newCategoryName.trim() ? newCategoryName.trim() : editCategoria
-    
+
     // Save category change if it differs
     if (finalCategoria !== ingredient.categoria) {
       onUpdateIngredient(ingredient.id, { categoria: finalCategoria })
     }
-    
+
     if (cantidadNum > 0 && motivo.trim()) {
       onAdjust(tipo, cantidadNum, motivo)
     } else if (finalCategoria !== ingredient.categoria) {

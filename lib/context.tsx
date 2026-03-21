@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { toast } from '@/components/ui/use-toast'
 import { supabase } from "./supabase"
 import {
   type Order,
@@ -206,6 +207,8 @@ function mapMenuItem(row: Record<string, unknown>): MenuItem {
     disponible: (row.available as boolean) ?? true,
     imagen: (row.image as string) ?? undefined,
     orden: (row.orden as number) ?? 0,
+    receta: (row.receta as MenuItem['receta']) ?? [],
+    extras: (row.extras as MenuItem['extras']) ?? [],
   }
 }
 
@@ -471,7 +474,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarMenu = async () => {
     const { data, error } = await supabase.from("menu_items").select("*")
-    if (error) { console.error("Error cargando menu:", error); return }
+    if (error) { console.error("Error cargando menu:", error); toast({ title: 'Error de conexión', description: 'No se pudo cargar el menú. Revisa tu conexión.', variant: 'destructive' }); return }
     if (data) setState(prev => ({ ...prev, menuItems: data.map(mapMenuItem) }))
   }
 
@@ -547,7 +550,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarSesiones = async () => {
     const { data, error } = await supabase.from('table_sessions').select('*').eq('activa', true)
-    if (error) { console.error('Error cargando sesiones:', error); return }
+    if (error) { console.error('Error cargando sesiones:', error); toast({ title: 'Error de conexión', description: 'No se pudieron cargar las sesiones de mesa.', variant: 'destructive' }); return }
     if (data) {
       const sesiones: TableSession[] = data.map(row => ({ ...mapSession(row), orders: [] }))
       setState(prev => ({ ...prev, tableSessions: sesiones }))
@@ -1099,7 +1102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       created_at: order.createdAt.toISOString(),
       updated_at: order.updatedAt.toISOString(),
     }).then(({ error }) => {
-      if (error) console.error('Error guardando pedido en Supabase:', error)
+      if (error) { console.error('Error guardando pedido en Supabase:', error); toast({ title: 'Error al guardar pedido', description: 'El pedido se registró localmente pero no se pudo sincronizar.', variant: 'destructive' }) }
     })
 
     const canalLabel = order.canal === 'mesa' ? `Mesa ${order.mesa}` : order.canal === 'delivery' ? `Delivery ${order.nombreCliente || ''}` : 'Para llevar'
@@ -1438,7 +1441,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       payment_status: 'pagado',
       paid_at: new Date().toISOString(),
     }).eq('id', sessionId).then(({ error }) => {
-      if (error) console.error('Error confirmando pago:', error)
+      if (error) { console.error('Error confirmando pago:', error); toast({ title: 'Error al confirmar pago', description: 'El pago no se pudo registrar en la base de datos.', variant: 'destructive' }) }
     })
     logAction('confirmar_pago', `Pago confirmado`, 'session', sessionId)
   }, [logAction])
@@ -1616,6 +1619,9 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     if (updates.precio !== undefined) payload.price = updates.precio
     if (updates.disponible !== undefined) payload.available = updates.disponible
     if (updates.categoria !== undefined) payload.category_id = updates.categoria
+    if (updates.cocina !== undefined) payload.cocina = updates.cocina
+    if (updates.receta !== undefined) payload.receta = updates.receta
+    if (updates.extras !== undefined) payload.extras = updates.extras
     if (imageUrl !== undefined) payload.image = imageUrl
 
     const { error } = await supabase
@@ -1625,6 +1631,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
 
     if (error) {
       console.error("Error actualizando platillo:", error)
+      toast({ title: 'Error al guardar platillo', description: error.message, variant: 'destructive' })
       return
     }
 
@@ -1659,13 +1666,17 @@ const addMenuItem = useCallback(
           price: item.precio,
           available: item.disponible ?? true,
           image: imageUrl,
-          category_id: item.categoria ?? null
+          category_id: item.categoria ?? null,
+          cocina: item.cocina ?? 'cocina_a',
+          receta: item.receta ?? [],
+          extras: item.extras ?? [],
         }
       ])
       .select()
 
     if (error) {
       console.error("Error creando platillo:", error)
+      toast({ title: 'Error al crear platillo', description: error.message, variant: 'destructive' })
       return
     }
 
@@ -1700,6 +1711,7 @@ const addMenuItem = useCallback(
 
   if (error) {
     console.error("Error eliminando platillo:", error)
+    toast({ title: 'Error al eliminar platillo', description: error.message, variant: 'destructive' })
     return
   }
 

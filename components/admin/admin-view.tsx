@@ -43,9 +43,10 @@ import { DeliveryZonesManager } from './delivery-zones-manager'
 import { RefundsManager } from './refunds-manager'
 import { DailyClosing } from './daily-closing'
 import { TableHistory } from './table-history'
+import { AuditLogViewer } from './audit-log-viewer'
 import { useApp } from '@/lib/context'
 
-type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history'
+type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit'
 
 interface AdminViewProps {
   onBack: () => void
@@ -97,6 +98,7 @@ export function AdminView({ onBack }: AdminViewProps) {
       items: [
         { id: 'qr', label: 'Codigos QR', icon: <QrCode className="h-5 w-5" /> },
         { id: 'history', label: 'Historial Mesas', icon: <History className="h-5 w-5" /> },
+        { id: 'audit', label: 'Bitácora', icon: <LayoutDashboard className="h-5 w-5" /> },
         { id: 'users', label: 'Usuarios', icon: <Users className="h-5 w-5" /> },
         { id: 'config', label: 'Configuracion', icon: <Settings className="h-5 w-5" /> },
       ]
@@ -176,6 +178,7 @@ export function AdminView({ onBack }: AdminViewProps) {
           {screen === 'refunds' && <RefundsManager />}
           {screen === 'qr' && <QRManager />}
           {screen === 'history' && <TableHistory />}
+          {screen === 'audit' && <AuditLogViewer />}
           {screen === 'users' && <UsersManager />}
           {screen === 'config' && <ConfigManager />}
         </div>

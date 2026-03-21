@@ -1,39 +1,63 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import { TrendingUp, DollarSign, ShoppingBag, Clock, Users, Utensils } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatPrice } from '@/lib/store'
+import { cn } from '@/lib/utils'
+
+type DateRange = 'today' | 'week' | 'month'
+
+const RANGE_LABELS: Record<DateRange, string> = {
+  today: 'Hoy',
+  week: 'Esta semana',
+  month: 'Este mes',
+}
+
+function getRangeStart(range: DateRange): Date {
+  const d = new Date()
+  if (range === 'today') {
+    d.setHours(0, 0, 0, 0)
+  } else if (range === 'week') {
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1) // Monday
+    d.setDate(diff)
+    d.setHours(0, 0, 0, 0)
+  } else {
+    d.setDate(1)
+    d.setHours(0, 0, 0, 0)
+  }
+  return d
+}
 
 export function ReportsManager() {
   const { orders, tableSessions } = useApp()
-  
-  // Calculate stats
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
-  const todayOrders = orders.filter(o => new Date(o.createdAt) >= today)
-  const completedTodayOrders = todayOrders.filter(o => o.status === 'entregado')
-  
-  const totalRevenue = completedTodayOrders.reduce((sum, order) => {
-    return sum + order.items.reduce((itemSum, item) => {
-      const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
-      return itemSum + (item.menuItem.precio + extrasTotal) * item.cantidad
-    }, 0)
-  }, 0)
-  
-  const totalItems = completedTodayOrders.reduce((sum, order) => {
-    return sum + order.items.reduce((itemSum, item) => itemSum + item.cantidad, 0)
-  }, 0)
-  
-  const avgOrderValue = completedTodayOrders.length > 0 
-    ? totalRevenue / completedTodayOrders.length 
-    : 0
-  
-  // Calculate average prep time
-  const ordersWithTimes = completedTodayOrders.filter(
-    o => o.tiempoInicioPreparacion && o.tiempoFinPreparacion
+  const [range, setRange] = useState<DateRange>('today')
+
+  const rangeStart = useMemo(() => getRangeStart(range), [range])
+
+  const rangeOrders = useMemo(
+    () => orders.filter(o => new Date(o.createdAt) >= rangeStart),
+    [orders, rangeStart]
   )
+  const completedOrders = useMemo(
+    () => rangeOrders.filter(o => o.status === 'entregado'),
+    [rangeOrders]
+  )
+
+  const totalRevenue = useMemo(() => completedOrders.reduce((sum, order) =>
+    sum + order.items.reduce((s, item) => {
+      const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
+      return s + (item.menuItem.precio + extrasTotal) * item.cantidad
+    }, 0), 0), [completedOrders])
+
+  const totalItems = useMemo(() => completedOrders.reduce((sum, order) =>
+    sum + order.items.reduce((s, item) => s + item.cantidad, 0), 0), [completedOrders])
+
+  const avgOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0
+
+  const ordersWithTimes = completedOrders.filter(o => o.tiempoInicioPreparacion && o.tiempoFinPreparacion)
   const avgPrepTime = ordersWithTimes.length > 0
     ? ordersWithTimes.reduce((sum, o) => {
         const start = new Date(o.tiempoInicioPreparacion!).getTime()
@@ -41,46 +65,58 @@ export function ReportsManager() {
         return sum + (end - start) / 1000 / 60
       }, 0) / ordersWithTimes.length
     : 0
-  
-  // Orders by channel
+
   const ordersByChannel = {
-    mesa: todayOrders.filter(o => o.canal === 'mesa' || o.canal === 'mesero').length,
-    para_llevar: todayOrders.filter(o => o.canal === 'para_llevar').length,
-    delivery: todayOrders.filter(o => o.canal === 'delivery').length,
+    mesa: rangeOrders.filter(o => o.canal === 'mesa' || o.canal === 'mesero').length,
+    para_llevar: rangeOrders.filter(o => o.canal === 'para_llevar').length,
+    delivery: rangeOrders.filter(o => o.canal === 'delivery').length,
   }
-  
-  // Top items
+
   const itemCounts: Record<string, { nombre: string; count: number; revenue: number }> = {}
-  completedTodayOrders.forEach(order => {
+  completedOrders.forEach(order => {
     order.items.forEach(item => {
       const key = item.menuItem.id
-      if (!itemCounts[key]) {
-        itemCounts[key] = { nombre: item.menuItem.nombre, count: 0, revenue: 0 }
-      }
+      if (!itemCounts[key]) itemCounts[key] = { nombre: item.menuItem.nombre, count: 0, revenue: 0 }
       itemCounts[key].count += item.cantidad
       itemCounts[key].revenue += item.menuItem.precio * item.cantidad
     })
   })
-  
-  const topItems = Object.values(itemCounts)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
-  
-  // Active tables
+  const topItems = Object.values(itemCounts).sort((a, b) => b.count - a.count).slice(0, 5)
+
   const activeTables = tableSessions.filter(s => s.activa).length
-  
+
+  const today = new Date()
+
   return (
     <div className="p-3">
-      <div className="mb-3">
-        <h2 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-          <TrendingUp className="h-3.5 w-3.5" />
-          Reportes del dia
-        </h2>
-        <p className="text-[10px] text-muted-foreground">
-          {today.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
+      <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5" />
+            Reportes
+          </h2>
+          <p className="text-[10px] text-muted-foreground">
+            {today.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+
+        {/* Range selector */}
+        <div className="flex rounded-lg border border-border overflow-hidden text-[10px] font-medium">
+          {(['today', 'week', 'month'] as DateRange[]).map(r => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={cn(
+                'px-2.5 py-1.5 transition-colors',
+                range === r ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-secondary'
+              )}
+            >
+              {RANGE_LABELS[r]}
+            </button>
+          ))}
+        </div>
       </div>
-      
+
       {/* Main Stats */}
       <div className="grid grid-cols-2 gap-2 mb-3">
         <Card className="bg-primary/10 border-primary/20">
@@ -89,24 +125,24 @@ export function ReportsManager() {
               <DollarSign className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-lg font-bold text-primary">{formatPrice(totalRevenue)}</p>
-                <p className="text-[9px] text-muted-foreground">Ventas del dia</p>
+                <p className="text-[9px] text-muted-foreground">Ventas {RANGE_LABELS[range].toLowerCase()}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-success/10 border-success/20">
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-5 w-5 text-success" />
               <div>
-                <p className="text-lg font-bold text-success">{completedTodayOrders.length}</p>
+                <p className="text-lg font-bold text-success">{completedOrders.length}</p>
                 <p className="text-[9px] text-muted-foreground">Pedidos completados</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-amber-500/10 border-amber-500/20">
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
@@ -118,7 +154,7 @@ export function ReportsManager() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-blue-500/10 border-blue-500/20">
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
@@ -131,7 +167,7 @@ export function ReportsManager() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Orders by Channel */}
       <Card className="mb-3">
         <CardHeader className="p-3 pb-2">
@@ -139,46 +175,25 @@ export function ReportsManager() {
         </CardHeader>
         <CardContent className="p-3 pt-0">
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">En mesa</span>
-              <div className="flex items-center gap-2">
-                <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary" 
-                    style={{ width: `${(ordersByChannel.mesa / Math.max(todayOrders.length, 1)) * 100}%` }}
-                  />
+            {[
+              { label: 'En mesa', count: ordersByChannel.mesa, color: 'bg-primary' },
+              { label: 'Para llevar', count: ordersByChannel.para_llevar, color: 'bg-amber-500' },
+              { label: 'Delivery', count: ordersByChannel.delivery, color: 'bg-success' },
+            ].map(({ label, count, color }) => (
+              <div key={label} className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">{label}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden">
+                    <div className={`h-full ${color}`} style={{ width: `${(count / Math.max(rangeOrders.length, 1)) * 100}%` }} />
+                  </div>
+                  <span className="text-xs font-medium w-6 text-right">{count}</span>
                 </div>
-                <span className="text-xs font-medium w-6 text-right">{ordersByChannel.mesa}</span>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Para llevar</span>
-              <div className="flex items-center gap-2">
-                <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-amber-500" 
-                    style={{ width: `${(ordersByChannel.para_llevar / Math.max(todayOrders.length, 1)) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs font-medium w-6 text-right">{ordersByChannel.para_llevar}</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Delivery</span>
-              <div className="flex items-center gap-2">
-                <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-success" 
-                    style={{ width: `${(ordersByChannel.delivery / Math.max(todayOrders.length, 1)) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs font-medium w-6 text-right">{ordersByChannel.delivery}</span>
-              </div>
-            </div>
+            ))}
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Top Items */}
       <Card className="mb-3">
         <CardHeader className="p-3 pb-2">
@@ -201,27 +216,23 @@ export function ReportsManager() {
                     }`}>
                       {index + 1}
                     </span>
-                    <span className="text-xs text-foreground truncate max-w-[120px]">
-                      {item.nombre}
-                    </span>
+                    <span className="text-xs text-foreground truncate max-w-[120px]">{item.nombre}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-medium text-foreground">{item.count} uds</span>
-                    <span className="text-[9px] text-muted-foreground block">
-                      {formatPrice(item.revenue)}
-                    </span>
+                    <span className="text-[9px] text-muted-foreground block">{formatPrice(item.revenue)}</span>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground text-center py-4">
-              Sin ventas registradas hoy
+              Sin ventas en este período
             </p>
           )}
         </CardContent>
       </Card>
-      
+
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-2">
         <Card>

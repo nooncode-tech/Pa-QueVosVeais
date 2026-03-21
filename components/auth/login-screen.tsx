@@ -9,19 +9,11 @@ import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getRoleLabel, type UserRole } from '@/lib/store'
+import { type UserRole } from '@/lib/store'
 
 interface LoginScreenProps {
   onLoginSuccess: (role: UserRole) => void
   onClienteAccess: () => void
-}
-
-// Credenciales de acceso rápido (demo)
-const QUICK_CREDENTIALS: Record<UserRole, { username: string; password: string }> = {
-  admin:    { username: 'admin',    password: 'admin123' },
-  mesero:   { username: 'mesero1',  password: 'mesero123' },
-  cocina_a: { username: 'cocina_a', password: 'cocina123' },
-  cocina_b: { username: 'cocina_b', password: 'cocina123' },
 }
 
 export function LoginScreen({ onLoginSuccess, onClienteAccess }: LoginScreenProps) {
@@ -47,14 +39,6 @@ export function LoginScreen({ onLoginSuccess, onClienteAccess }: LoginScreenProp
       setError('Error de conexión. Intenta de nuevo.')
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const quickLogin = (role: UserRole) => {
-    const creds = QUICK_CREDENTIALS[role]
-    if (creds) {
-      setUsername(creds.username)
-      setPassword(creds.password)
     }
   }
 
@@ -160,24 +144,6 @@ export function LoginScreen({ onLoginSuccess, onClienteAccess }: LoginScreenProp
                 </Button>
               </form>
 
-              {/* Quick Access (Demo) */}
-              <div className="mt-6 pt-4 border-t border-border">
-                <p className="text-[10px] text-muted-foreground text-center mb-3">
-                  Acceso rápido (demo)
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['admin', 'mesero', 'cocina_a', 'cocina_b'] as UserRole[]).map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() => quickLogin(role)}
-                      className="text-[10px] py-1.5 px-2 rounded bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
-                    >
-                      {getRoleLabel(role)}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </CardContent>
           </Card>
 
