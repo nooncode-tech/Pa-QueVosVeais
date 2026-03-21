@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Search, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { formatPrice, getChannelLabel, type OrderItem } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
@@ -50,40 +51,69 @@ function orderTotal(order: HistoricalOrder): number {
   }, 0) + (order.costoEnvio ?? 0)
 }
 
+const PAGE_SIZE = 50
+
 export function OrdersHistory() {
   const [range, setRange] = useState<DateRange>('today')
   const [orders, setOrders] = useState<HistoricalOrder[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const mapRow = (row: Record<string, unknown>): HistoricalOrder => ({
+    id: row.id as string,
+    numero: (row.numero as number) ?? 0,
+    canal: row.canal as string,
+    mesa: (row.mesa as number) ?? null,
+    nombreCliente: (row.nombre_cliente as string) ?? null,
+    status: row.status as string,
+    items: (row.items as OrderItem[]) ?? [],
+    costoEnvio: Number(row.costo_envio) ?? 0,
+    createdAt: row.created_at as string,
+  })
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      setOrders([])
       const { data, error } = await supabase
         .from('orders')
         .select('id, numero, canal, mesa, nombre_cliente, status, items, costo_envio, created_at')
         .in('status', ['entregado', 'cancelado'])
         .gte('created_at', getRangeSince(range))
         .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE + 1)
 
       if (!error && data) {
-        setOrders(data.map(row => ({
-          id: row.id as string,
-          numero: (row.numero as number) ?? 0,
-          canal: row.canal as string,
-          mesa: (row.mesa as number) ?? null,
-          nombreCliente: (row.nombre_cliente as string) ?? null,
-          status: row.status as string,
-          items: (row.items as OrderItem[]) ?? [],
-          costoEnvio: Number(row.costo_envio) ?? 0,
-          createdAt: row.created_at as string,
-        })))
+        setHasMore(data.length > PAGE_SIZE)
+        setOrders(data.slice(0, PAGE_SIZE).map(mapRow))
       }
       setLoading(false)
     }
     load()
   }, [range])
+
+  const loadMore = async () => {
+    if (!orders.length) return
+    setLoadingMore(true)
+    const lastCreatedAt = orders[orders.length - 1].createdAt
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, numero, canal, mesa, nombre_cliente, status, items, costo_envio, created_at')
+      .in('status', ['entregado', 'cancelado'])
+      .gte('created_at', getRangeSince(range))
+      .lt('created_at', lastCreatedAt)
+      .order('created_at', { ascending: false })
+      .limit(PAGE_SIZE + 1)
+
+    if (!error && data) {
+      setHasMore(data.length > PAGE_SIZE)
+      setOrders(prev => [...prev, ...data.slice(0, PAGE_SIZE).map(mapRow)])
+    }
+    setLoadingMore(false)
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -144,7 +174,7 @@ export function OrdersHistory() {
         <p className="text-xs text-muted-foreground text-center py-8">Sin pedidos en este período</p>
       ) : (
         <div className="space-y-1.5">
-          {filtered.map(order => {
+          {(search ? filtered : orders).map(order => {
             const isExpanded = expandedId === order.id
             const total = orderTotal(order)
             const isDelivered = order.status === 'entregado'
@@ -220,6 +250,18 @@ export function OrdersHistory() {
               </Card>
             )
           })}
+          {!search && hasMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs mt-1"
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Cargar más
+            </Button>
+          )}
         </div>
       )}
     </div>

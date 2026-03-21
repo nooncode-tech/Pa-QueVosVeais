@@ -331,7 +331,7 @@ function loadState(): AppState {
               createdAt: new Date(u.createdAt),
             }))
           : DEFAULT_USERS,
-        rewards: parsed.rewards || DEFAULT_REWARDS,
+        rewards: DEFAULT_REWARDS,
         appliedRewards: parsed.appliedRewards || [],
         waiterCalls: parsed.waiterCalls?.map((c: WaiterCall) => ({
           ...c,
@@ -357,7 +357,7 @@ function loadState(): AppState {
           ...r,
           createdAt: new Date(r.createdAt),
         })) || [],
-        deliveryZones: parsed.deliveryZones || DEFAULT_DELIVERY_ZONES,
+        deliveryZones: DEFAULT_DELIVERY_ZONES,
         categories: (parsed.categories && parsed.categories.length > 0) ? parsed.categories : DEFAULT_CATEGORIES,
         tables: parsed.tables?.map((t: TableConfig) => ({
           ...t,
@@ -555,10 +555,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const cargarSesiones = async () => {
     const { data, error } = await supabase.from('table_sessions').select('*').eq('activa', true)
     if (error) { console.error('Error cargando sesiones:', error); toast({ title: 'Error de conexión', description: 'No se pudieron cargar las sesiones de mesa.', variant: 'destructive' }); return }
-    if (data) {
-      const sesiones: TableSession[] = data.map(row => ({ ...mapSession(row), orders: [] }))
-      setState(prev => ({ ...prev, tableSessions: sesiones }))
+    if (!data || data.length === 0) {
+      setState(prev => ({ ...prev, tableSessions: [] }))
+      return
     }
+    const mesas = data.map(r => r.mesa as number)
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const { data: sessionOrders } = await supabase
+      .from('orders')
+      .select('*')
+      .in('mesa', mesas)
+      .gte('created_at', today.toISOString())
+      .order('created_at')
+    const ordersForSessions = (sessionOrders || []).map(mapOrder)
+    const sesiones: TableSession[] = data.map(row => ({
+      ...mapSession(row),
+      orders: ordersForSessions.filter(o => o.mesa === (row.mesa as number)),
+    }))
+    setState(prev => {
+      // Merge session orders into main orders array (avoid duplicates)
+      const existingIds = new Set(prev.orders.map(o => o.id))
+      const newOrders = ordersForSessions.filter(o => !existingIds.has(o.id))
+      return {
+        ...prev,
+        tableSessions: sesiones,
+        orders: [...prev.orders, ...newOrders],
+      }
+    })
   }
 
   const cargarTables = async () => {
@@ -636,6 +659,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const cargarDeliveryZones = async () => {
+    const { data, error } = await supabase.from('delivery_zones').select('*').order('nombre')
+    if (error) { console.error('Error cargando zonas:', error); return }
+    if (data) {
+      const zones: DeliveryZone[] = data.map(row => ({
+        nombre: row.nombre as string,
+        costoEnvio: Number(row.costo_envio),
+        tiempoEstimado: Number(row.tiempo_estimado),
+        activa: row.activa as boolean,
+      }))
+      setState(prev => ({ ...prev, deliveryZones: zones }))
+    }
+  }
+
+  const cargarRewards = async () => {
+    const { data, error } = await supabase.from('rewards').select('*').order('created_at')
+    if (error) { console.error('Error cargando recompensas:', error); return }
+    if (data) {
+      const rewards: Reward[] = data.map(row => ({
+        id: row.id as string,
+        nombre: row.nombre as string,
+        descripcion: row.descripcion as string,
+        tipo: row.tipo as Reward['tipo'],
+        valor: Number(row.valor),
+        accion: row.accion as Reward['accion'],
+        activo: row.activo as boolean,
+        usosMaximos: row.usos_maximos ? Number(row.usos_maximos) : undefined,
+      }))
+      setState(prev => ({ ...prev, rewards }))
+    }
+  }
+
   cargarMenu()
   cargarCategorias()
   cargarOrders()
@@ -647,6 +702,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   cargarConfig()
   cargarTables()
   cargarWaiterCalls()
+  cargarDeliveryZones()
+  cargarRewards()
 
 }, [])
 
@@ -842,6 +899,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
         }))
       })
+      // ── Delivery Zones Realtime ──────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delivery_zones' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const zone: DeliveryZone = { nombre: row.nombre as string, costoEnvio: Number(row.costo_envio), tiempoEstimado: Number(row.tiempo_estimado), activa: row.activa as boolean }
+        setState(prev => ({
+          ...prev,
+          deliveryZones: prev.deliveryZones.some(z => z.nombre === zone.nombre)
+            ? prev.deliveryZones
+            : [...prev.deliveryZones, zone],
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'delivery_zones' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        setState(prev => ({
+          ...prev,
+          deliveryZones: prev.deliveryZones.map(z =>
+            z.nombre === (row.nombre as string)
+              ? { ...z, costoEnvio: Number(row.costo_envio), tiempoEstimado: Number(row.tiempo_estimado), activa: row.activa as boolean }
+              : z
+          ),
+        }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'delivery_zones' }, (payload) => {
+        const nombre = (payload.old as Record<string, unknown>).nombre as string
+        setState(prev => ({ ...prev, deliveryZones: prev.deliveryZones.filter(z => z.nombre !== nombre) }))
+      })
+      // ── Rewards Realtime ─────────────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rewards' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const reward: Reward = { id: row.id as string, nombre: row.nombre as string, descripcion: row.descripcion as string, tipo: row.tipo as Reward['tipo'], valor: Number(row.valor), accion: row.accion as Reward['accion'], activo: row.activo as boolean, usosMaximos: row.usos_maximos ? Number(row.usos_maximos) : undefined }
+        setState(prev => ({
+          ...prev,
+          rewards: prev.rewards.some(r => r.id === reward.id) ? prev.rewards : [...prev.rewards, reward],
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rewards' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        setState(prev => ({
+          ...prev,
+          rewards: prev.rewards.map(r =>
+            r.id === (row.id as string)
+              ? { ...r, nombre: row.nombre as string, descripcion: row.descripcion as string, tipo: row.tipo as Reward['tipo'], valor: Number(row.valor), accion: row.accion as Reward['accion'], activo: row.activo as boolean, usosMaximos: row.usos_maximos ? Number(row.usos_maximos) : undefined }
+              : r
+          ),
+        }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'rewards' }, (payload) => {
+        const deletedId = (payload.old as Record<string, unknown>).id as string
+        setState(prev => ({ ...prev, rewards: prev.rewards.filter(r => r.id !== deletedId) }))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -856,9 +963,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const stateToSave = {
       config: state.config,
       users: state.users,
-      rewards: state.rewards,
       appliedRewards: state.appliedRewards,
-      deliveryZones: state.deliveryZones,
       qrTokens: state.qrTokens,
       cart: state.cart,
       currentTable: state.currentTable,
@@ -1576,10 +1681,12 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
   // ============ EMERGENCY ACTIONS ============
   const emergencyCloseAllTables = useCallback(() => {
     let activeSessionIds: string[] = []
+    let activeMesasList: number[] = []
     setState(prev => {
       const activeSessions = prev.tableSessions.filter(s => s.activa)
       const activeMesas = new Set(activeSessions.map(s => s.mesa))
       activeSessionIds = activeSessions.map(s => s.id)
+      activeMesasList = [...activeMesas]
 
       return {
         ...prev,
@@ -1600,6 +1707,13 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
         .update({ activa: false, bill_status: 'cerrada' })
         .in('id', activeSessionIds)
         .then(({ error }) => { if (error) console.error('Error cerrando sesiones emergency:', error) })
+      if (activeMesasList.length > 0) {
+        supabase.from('orders')
+          .update({ status: 'cancelado', updated_at: new Date().toISOString() })
+          .in('mesa', activeMesasList)
+          .not('status', 'in', '("entregado","cancelado")')
+          .then(({ error }) => { if (error) console.error('Error cancelando orders en emergency close:', error) })
+      }
     }
   }, [])
 
@@ -1624,6 +1738,11 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
         .update({ activa: false, bill_status: 'cerrada' })
         .in('id', closedIds)
         .then(({ error }) => { if (error) console.error('Error cerrando sesiones:', error) })
+      supabase.from('orders')
+        .update({ status: 'cancelado', updated_at: new Date().toISOString() })
+        .in('mesa', tables)
+        .not('status', 'in', '("entregado","cancelado")')
+        .then(({ error }) => { if (error) console.error('Error cancelando orders en close tables:', error) })
     }
   }, [])
   
@@ -2420,6 +2539,8 @@ const addMenuItem = useCallback(
       ingredients: newIngredients,
     }))
 
+    const restorations = buildDeductions(itemsToRestore.map(i => ({ menuItem: i.menuItem, cantidad: i.cantidad, extras: i.extras })))
+
     supabase.from('refunds').insert({
       id: refund.id,
       order_id: refund.orderId,
@@ -2431,7 +2552,12 @@ const addMenuItem = useCallback(
       inventario_revertido: refund.inventarioRevertido,
       user_id: refund.userId,
     }).then(({ error }) => {
-      if (error) console.error('Error guardando reembolso:', error)
+      if (error) { console.error('Error guardando reembolso:', error); return }
+      if (restorations.length > 0) {
+        supabase.rpc('restore_ingredients', { restorations }).then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('Error restaurando ingredientes en reembolso:', rpcErr)
+        })
+      }
     })
     logAction('reembolso', `Reembolso ${tipo} $${monto} - ${motivo}`, 'order', orderId)
 
@@ -2454,13 +2580,25 @@ const addMenuItem = useCallback(
         z.nombre === zonaNombre ? { ...z, ...updates } : z
       ),
     }))
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (updates.costoEnvio !== undefined) payload.costo_envio = updates.costoEnvio
+    if (updates.tiempoEstimado !== undefined) payload.tiempo_estimado = updates.tiempoEstimado
+    if (updates.activa !== undefined) payload.activa = updates.activa
+    supabase.from('delivery_zones').update(payload).eq('nombre', zonaNombre)
+      .then(({ error }) => { if (error) console.error('Error actualizando zona:', error) })
   }, [])
-  
+
   const addDeliveryZone = useCallback((zone: DeliveryZone) => {
     setState(prev => ({
       ...prev,
       deliveryZones: [...prev.deliveryZones, zone],
     }))
+    supabase.from('delivery_zones').insert({
+      nombre: zone.nombre,
+      costo_envio: zone.costoEnvio,
+      tiempo_estimado: zone.tiempoEstimado,
+      activa: zone.activa,
+    }).then(({ error }) => { if (error) console.error('Error creando zona:', error) })
   }, [])
   
   const calculateDeliveryCost = useCallback((zonaNombre: string): number => {
