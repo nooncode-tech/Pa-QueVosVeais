@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { toast } from '@/components/ui/use-toast'
 import { supabase } from "./supabase"
 import {
@@ -196,8 +196,6 @@ interface AppContextType extends AppState {
 
 const AppContext = createContext<AppContextType | null>(null)
 
-const STORAGE_KEY = 'pqvv_app_state_v3'
-
 // ── DB row → app type mappers ─────────────────────────────────────────────────
 function mapMenuItem(row: Record<string, unknown>): MenuItem {
   return {
@@ -300,101 +298,6 @@ function mapTableConfig(row: Record<string, unknown>): TableConfig {
   }
 }
 
-function loadState(): AppState {
-  if (typeof window === 'undefined') {
-    return getDefaultState()
-  }
-  
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      const result: AppState = {
-        orders: parsed.orders?.map((o: Order) => ({
-          ...o,
-          createdAt: new Date(o.createdAt),
-          updatedAt: new Date(o.updatedAt),
-          tiempoInicioPreparacion: o.tiempoInicioPreparacion ? new Date(o.tiempoInicioPreparacion) : undefined,
-          tiempoFinPreparacion: o.tiempoFinPreparacion ? new Date(o.tiempoFinPreparacion) : undefined,
-        })) || [],
-        tableSessions: parsed.tableSessions?.map((s: TableSession) => ({
-          ...s,
-          createdAt: new Date(s.createdAt),
-          expiresAt: new Date(s.expiresAt),
-          paidAt: s.paidAt ? new Date(s.paidAt) : undefined,
-        })) || [],
-        menuItems: parsed.menuItems || MENU_ITEMS,
-        ingredients: parsed.ingredients || DEFAULT_INGREDIENTS,
-        users: (parsed.users && parsed.users.length > 0) 
-          ? parsed.users.map((u: User) => ({
-              ...u,
-              createdAt: new Date(u.createdAt),
-            }))
-          : DEFAULT_USERS,
-        rewards: DEFAULT_REWARDS,
-        appliedRewards: parsed.appliedRewards || [],
-        waiterCalls: parsed.waiterCalls?.map((c: WaiterCall) => ({
-          ...c,
-          createdAt: new Date(c.createdAt),
-          atendidoAt: c.atendidoAt ? new Date(c.atendidoAt) : undefined,
-        })) || [],
-        config: parsed.config || DEFAULT_CONFIG,
-        auditLogs: parsed.auditLogs?.map((l: AuditLog) => ({
-          ...l,
-          createdAt: new Date(l.createdAt),
-        })) || [],
-        inventoryAdjustments: parsed.inventoryAdjustments?.map((a: InventoryAdjustment) => ({
-          ...a,
-          createdAt: new Date(a.createdAt),
-        })) || [],
-        qrTokens: parsed.qrTokens?.map((t: QRToken) => ({
-          ...t,
-          createdAt: new Date(t.createdAt),
-          expiresAt: new Date(t.expiresAt),
-          usedAt: t.usedAt ? new Date(t.usedAt) : undefined,
-        })) || [],
-        refunds: parsed.refunds?.map((r: Refund) => ({
-          ...r,
-          createdAt: new Date(r.createdAt),
-        })) || [],
-        deliveryZones: DEFAULT_DELIVERY_ZONES,
-        categories: (parsed.categories && parsed.categories.length > 0) ? parsed.categories : DEFAULT_CATEGORIES,
-        tables: parsed.tables?.map((t: TableConfig) => ({
-          ...t,
-          createdAt: new Date(t.createdAt),
-        })) || DEFAULT_TABLES,
-        cart: parsed.cart || [],
-        currentTable: parsed.currentTable ?? null,
-        currentUser: parsed.currentUser || null,
-        currentSessionId: parsed.currentSessionId || null,
-      }
-
-      // Validate: clear currentTable/currentSessionId if there is no matching active session
-      const sessions: TableSession[] = result.tableSessions
-      if (result.currentSessionId) {
-        const sessionExists = sessions.some(s => s.id === result.currentSessionId && s.activa)
-        if (!sessionExists) {
-          result.currentSessionId = null
-          result.currentTable = null
-          result.cart = []
-        }
-      } else if (result.currentTable !== null) {
-        const hasActiveSession = sessions.some(s => s.mesa === result.currentTable && s.activa)
-        if (!hasActiveSession) {
-          result.currentTable = null
-          result.cart = []
-        }
-      }
-
-      return result
-    }
-  } catch (e) {
-    console.error('Error loading state:', e)
-  }
-  
-  return getDefaultState()
-}
-
 function getDefaultState(): AppState {
   return {
     orders: [],
@@ -422,15 +325,6 @@ function getDefaultState(): AppState {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(getDefaultState)
-  const [isHydrated, setIsHydrated] = useState(false)
-  const isWritingRef = useRef(false)
-  
-  // Load state from localStorage on mount (client-side only)
-  useEffect(() => {
-    const loaded = loadState()
-    setState(loaded)
-    setIsHydrated(true)
-  }, [])
 
   // Restore Supabase session on mount + listen for auth changes
   useEffect(() => {
@@ -659,6 +553,74 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const cargarQRTokens = async () => {
+    const { data, error } = await supabase
+      .from('qr_tokens')
+      .select('*')
+      .eq('activo', true)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+    if (error) { console.error('Error cargando QR tokens:', error); return }
+    if (data) {
+      const tokens: QRToken[] = data.map(row => ({
+        id: row.id as string,
+        mesa: row.mesa as number,
+        token: row.token as string,
+        createdAt: new Date(row.created_at as string),
+        expiresAt: new Date(row.expires_at as string),
+        usedAt: row.used_at ? new Date(row.used_at as string) : undefined,
+        sessionId: (row.session_id as string) ?? undefined,
+        activo: row.activo as boolean,
+      }))
+      setState(prev => ({ ...prev, qrTokens: tokens }))
+    }
+  }
+
+  const cargarAppliedRewards = async () => {
+    const since = new Date()
+    since.setMonth(since.getMonth() - 1)
+    const { data, error } = await supabase
+      .from('applied_rewards')
+      .select('*')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+    if (error) { console.error('Error cargando applied rewards:', error); return }
+    if (data) {
+      const applied: AppliedReward[] = data.map(row => ({
+        id: row.id as string,
+        sessionId: row.session_id as string,
+        rewardId: row.reward_id as string,
+        descuento: Number(row.descuento),
+        createdAt: new Date(row.created_at as string),
+      }))
+      setState(prev => ({ ...prev, appliedRewards: applied }))
+    }
+  }
+
+  const cargarAuditLogs = async () => {
+    const since = new Date()
+    since.setDate(since.getDate() - 30) // last 30 days
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(500)
+    if (error) { console.error('Error cargando audit logs:', error); return }
+    if (data) {
+      const logs: AuditLog[] = data.map(row => ({
+        id: row.id as string,
+        userId: row.user_id as string,
+        accion: row.accion as string,
+        detalles: row.detalles as string,
+        entidad: row.entidad as string,
+        entidadId: row.entidad_id as string,
+        createdAt: new Date(row.created_at as string),
+      }))
+      setState(prev => ({ ...prev, auditLogs: logs }))
+    }
+  }
+
   const cargarDeliveryZones = async () => {
     const { data, error } = await supabase.from('delivery_zones').select('*').order('nombre')
     if (error) { console.error('Error cargando zonas:', error); return }
@@ -702,6 +664,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   cargarConfig()
   cargarTables()
   cargarWaiterCalls()
+  cargarQRTokens()
+  cargarAppliedRewards()
+  cargarAuditLogs()
   cargarDeliveryZones()
   cargarRewards()
 
@@ -949,75 +914,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const deletedId = (payload.old as Record<string, unknown>).id as string
         setState(prev => ({ ...prev, rewards: prev.rewards.filter(r => r.id !== deletedId) }))
       })
+      // ── Applied Rewards Realtime ─────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'applied_rewards' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const ar: AppliedReward = { id: row.id as string, sessionId: row.session_id as string, rewardId: row.reward_id as string, descuento: Number(row.descuento), createdAt: new Date(row.created_at as string) }
+        setState(prev => ({
+          ...prev,
+          appliedRewards: prev.appliedRewards.some(a => a.id === ar.id) ? prev.appliedRewards : [...prev.appliedRewards, ar],
+        }))
+      })
+      // ── QR Tokens Realtime ───────────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'qr_tokens' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const t: QRToken = { id: row.id as string, mesa: row.mesa as number, token: row.token as string, createdAt: new Date(row.created_at as string), expiresAt: new Date(row.expires_at as string), usedAt: row.used_at ? new Date(row.used_at as string) : undefined, sessionId: (row.session_id as string) ?? undefined, activo: row.activo as boolean }
+        setState(prev => ({
+          ...prev,
+          qrTokens: prev.qrTokens.some(q => q.id === t.id) ? prev.qrTokens : [...prev.qrTokens, t],
+        }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qr_tokens' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        setState(prev => ({
+          ...prev,
+          qrTokens: prev.qrTokens.map(q =>
+            q.id === (row.id as string)
+              ? { ...q, activo: row.activo as boolean, usedAt: row.used_at ? new Date(row.used_at as string) : undefined, sessionId: (row.session_id as string) ?? undefined }
+              : q
+          ),
+        }))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  // Save lightweight state to localStorage after hydration
-  // orders, tableSessions, menuItems, categories, ingredients are all in Supabase — exclude them
-  useEffect(() => {
-    if (!isHydrated) return
-    isWritingRef.current = true
-
-    const stateToSave = {
-      config: state.config,
-      users: state.users,
-      appliedRewards: state.appliedRewards,
-      qrTokens: state.qrTokens,
-      cart: state.cart,
-      currentTable: state.currentTable,
-      currentUser: state.currentUser,
-      currentSessionId: state.currentSessionId,
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
-
-    setTimeout(() => { isWritingRef.current = false }, 0)
-  }, [state, isHydrated])
-  
-  // Listen for changes from other tabs only
-  useEffect(() => {
-    if (!isHydrated) return
-    
-    const handleStorageChange = (e: StorageEvent) => {
-      // Skip if we triggered this change ourselves
-      if (isWritingRef.current) return
-      if (e.key !== STORAGE_KEY || !e.newValue) return
-      
-      try {
-        const newState = JSON.parse(e.newValue)
-        setState(prev => ({
-          ...prev,
-          orders: newState.orders?.map((o: Order) => ({
-            ...o,
-            createdAt: new Date(o.createdAt),
-            updatedAt: new Date(o.updatedAt),
-          })) || prev.orders,
-          tableSessions: newState.tableSessions?.map((s: TableSession) => ({
-            ...s,
-            createdAt: new Date(s.createdAt),
-            expiresAt: new Date(s.expiresAt),
-          })) || prev.tableSessions,
-          waiterCalls: newState.waiterCalls?.map((c: WaiterCall) => ({
-            ...c,
-            createdAt: new Date(c.createdAt),
-          })) || prev.waiterCalls,
-          menuItems: newState.menuItems || prev.menuItems,
-          ingredients: newState.ingredients || prev.ingredients,
-        }))
-      } catch (err) {
-        console.error('Error syncing state:', err)
-      }
-    }
-    
-    window.addEventListener('storage', handleStorageChange)
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-    }
-  }, [isHydrated])
-  
   // ============ AUTH ACTIONS ============
   const login = useCallback(async (username: string, password: string): Promise<User | null> => {
     const email = `${username}@pqvv.local`
@@ -1117,6 +1047,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         entidadId,
         createdAt: new Date(),
       }
+      // Persist to Supabase (fire-and-forget)
+      supabase.from('audit_logs').insert({
+        id: log.id,
+        user_id: log.userId,
+        accion: log.accion,
+        detalles: log.detalles,
+        entidad: log.entidad,
+        entidad_id: log.entidadId,
+      }).then(({ error }) => { if (error) console.error('Error guardando audit log:', error) })
       return { ...prev, auditLogs: [...prev.auditLogs, log] }
     })
   }, [])
@@ -1842,6 +1781,13 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       .eq('id', sessionId)
       .then(({ error }) => { if (error) console.error('Error aplicando recompensa:', error) })
 
+    supabase.from('applied_rewards').insert({
+      id: applied.id,
+      session_id: applied.sessionId,
+      reward_id: applied.rewardId,
+      descuento: applied.descuento,
+    }).then(({ error }) => { if (error) console.error('Error guardando applied_reward:', error) })
+
     return true
   }, [state.rewards, state.tableSessions, state.appliedRewards])
   
@@ -2460,24 +2406,33 @@ const addMenuItem = useCallback(
   
   // ============ QR TOKEN ACTIONS ============
   const generateTableQR = useCallback((mesa: number): QRToken => {
-    // Invalidate any existing active tokens for this table
+    // Invalidate existing active tokens for this table in Supabase
     setState(prev => ({
       ...prev,
       qrTokens: prev.qrTokens.map(t =>
         t.mesa === mesa && t.activo ? { ...t, activo: false } : t
       ),
     }))
-    
+    supabase.from('qr_tokens').update({ activo: false }).eq('mesa', mesa).eq('activo', true)
+      .then(({ error }) => { if (error) console.error('Error invalidando QR tokens anteriores:', error) })
+
     const newToken = createQRToken(mesa, state.config.tiempoExpiracionSesionMinutos)
-    
+
     setState(prev => ({
       ...prev,
       qrTokens: [...prev.qrTokens, newToken],
     }))
-    
+    supabase.from('qr_tokens').insert({
+      id: newToken.id,
+      mesa: newToken.mesa,
+      token: newToken.token,
+      expires_at: newToken.expiresAt.toISOString(),
+      activo: true,
+    }).then(({ error }) => { if (error) console.error('Error guardando QR token:', error) })
+
     return newToken
   }, [state.config.tiempoExpiracionSesionMinutos])
-  
+
   const validateTableQR = useCallback((token: string): { valid: boolean; mesa?: number; token?: QRToken } => {
     const qrToken = validateQRToken(token, state.qrTokens)
     if (!qrToken) {
@@ -2485,7 +2440,7 @@ const addMenuItem = useCallback(
     }
     return { valid: true, mesa: qrToken.mesa, token: qrToken }
   }, [state.qrTokens])
-  
+
   const invalidateTableQR = useCallback((tokenId: string) => {
     setState(prev => ({
       ...prev,
@@ -2493,6 +2448,8 @@ const addMenuItem = useCallback(
         t.id === tokenId ? { ...t, activo: false } : t
       ),
     }))
+    supabase.from('qr_tokens').update({ activo: false }).eq('id', tokenId)
+      .then(({ error }) => { if (error) console.error('Error invalidando QR token:', error) })
   }, [])
   
   const getActiveQRForTable = useCallback((mesa: number): QRToken | undefined => {

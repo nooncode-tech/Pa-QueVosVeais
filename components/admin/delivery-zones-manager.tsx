@@ -47,15 +47,17 @@ export function DeliveryZonesManager() {
   }
   
   const handleAdd = () => {
-    if (!formData.nombre.trim()) return
-    
+    const nombre = formData.nombre.trim()
+    if (!nombre) return
+    if (deliveryZones.some(z => z.nombre.toLowerCase() === nombre.toLowerCase())) return
+
     addDeliveryZone({
-      nombre: formData.nombre.trim(),
+      nombre,
       costoEnvio: formData.costoEnvio,
       tiempoEstimado: formData.tiempoEstimado,
       activa: formData.activa,
     })
-    
+
     resetForm()
     setShowAddDialog(false)
   }
@@ -214,11 +216,17 @@ export function DeliveryZonesManager() {
             </div>
           </div>
           
+          {formData.nombre.trim() && deliveryZones.some(z => z.nombre.toLowerCase() === formData.nombre.trim().toLowerCase()) && (
+            <p className="text-xs text-destructive px-1">Ya existe una zona con ese nombre.</p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleAdd} disabled={!formData.nombre.trim()}>
+            <Button
+              onClick={handleAdd}
+              disabled={!formData.nombre.trim() || deliveryZones.some(z => z.nombre.toLowerCase() === formData.nombre.trim().toLowerCase())}
+            >
               Agregar Zona
             </Button>
           </DialogFooter>

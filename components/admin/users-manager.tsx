@@ -269,8 +269,11 @@ function UserDialog({ user, onClose, onSave, onDelete }: UserDialogProps) {
     setLoading(false)
   }
 
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
   const handleDelete = async () => {
     if (!onDelete) return
+    if (!confirmDelete) { setConfirmDelete(true); return }
     setLoading(true)
     const err = await onDelete()
     if (err) setError(err)
@@ -342,11 +345,12 @@ function UserDialog({ user, onClose, onSave, onDelete }: UserDialogProps) {
             {onDelete && (
               <Button
                 variant="outline"
-                className="h-9 text-xs text-destructive border-destructive hover:bg-destructive/10 bg-transparent"
+                className={`h-9 text-xs border-destructive bg-transparent ${confirmDelete ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'text-destructive hover:bg-destructive/10'}`}
                 onClick={handleDelete}
                 disabled={loading}
+                title={confirmDelete ? 'Confirmar eliminación' : 'Eliminar usuario'}
               >
-                <Trash2 className="h-3 w-3" />
+                {confirmDelete ? <span className="text-[10px] px-1">¿Confirmar?</span> : <Trash2 className="h-3 w-3" />}
               </Button>
             )}
             <Button variant="outline" className="flex-1 h-9 text-xs bg-transparent" onClick={onClose} disabled={loading}>
