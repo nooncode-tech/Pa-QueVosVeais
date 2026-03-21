@@ -338,29 +338,55 @@ Implemented and complete:
 
 
 
-\- Menu CRUD
+\- Menu CRUD (Supabase + Realtime)
 
-\- Category CRUD
+\- Category CRUD (Supabase + Realtime)
 
 \- Menu grouped by category
 
 \- Image upload to Supabase Storage
 
-\- Orders system
+\- Orders system (localStorage — NOT yet in Supabase)
 
-\- Table sessions
+\- Table sessions (localStorage — NOT yet in Supabase)
 
-\- Kitchen preparation states
+\- Kitchen preparation states (KDS view, dual station A/B)
 
-\- Inventory system
+\- Inventory system with ingredients and recipes
 
-\- Extras system
+\- Extras system per menu item
 
-\- Ingredients recipe system
+\- Ingredients recipe system with receta JSONB
 
-\- Category ordering
+\- Category ordering (orden column in DB)
 
-\- Admin panel interface
+\- Admin panel interface (sidebar desktop + tabs mobile)
+
+\- Supabase Auth (login/logout, session restore, onAuthStateChange)
+
+\- User roles: admin, mesero, cocina_a, cocina_b, cliente
+
+\- Audit log viewer (Bitácora in admin panel)
+
+\- Daily closing (Corte de Caja)
+
+\- Refunds system
+
+\- QR code generation and download
+
+\- Delivery zones manager
+
+\- Table history
+
+\- Waiter calls system
+
+\- Print system: kitchen ticket, customer receipt
+
+\- Rewards system (UI only)
+
+\- Reports manager (basic: today/week/month range, top items, channel breakdown)
+
+\- Toast notifications for errors
 
 
 
@@ -368,21 +394,29 @@ Incomplete or in progress:
 
 
 
-\- Multi-restaurant support
+\- Orders and table_sessions NOT migrated to Supabase (still localStorage = no multi-device sync, no realtime for kitchen)
 
-\- Production-grade inventory alerts
+\- Drag & drop for categories and menu items (not implemented)
 
-\- Analytics dashboard
+\- Analytics dashboard (basic reports exist, no charts or historical trends)
 
-\- Payment integrations
+\- Payment integrations (simulated only)
 
-\- Realtime para orders/sessions (requiere migrar orders a Supabase)
+\- Tests automatizados (none)
+
+\- Multi-restaurant support (single-tenant only)
+
+\- Advanced role permissions (roles exist, no fine-grained access control)
+
+\- Inventory deductions not transactional
 
 
 
 Blocking progress now:
 
 
+
+\- Orders in localStorage = cocina no recibe pedidos nuevos en tiempo real entre dispositivos
 
 \- Need stronger architecture separation between DB state and local context
 
@@ -668,7 +702,23 @@ Open
 
 
 
-\## 10. NEXT RECOMMENDED STEP 🔄
+\## 10. WHAT MUST NOT BE DONE (from PDF)
+
+
+
+\- Lógica crítica solo en frontend (context.tsx)
+
+\- Uso de service\_role key en cliente
+
+\- Dependencia excesiva en localStorage
+
+
+
+\---
+
+
+
+\## 11. NEXT RECOMMENDED STEP 🔄
 
 
 
@@ -696,7 +746,7 @@ Reason:
 
 
 
-Orders son el core del POS. Actualmente en localStorage = no hay sincronización entre dispositivos. Migrar a Supabase desbloquea Realtime, persistencia real y futuros analytics.
+Orders son el core del POS. Actualmente en localStorage = no hay sincronización entre dispositivos. Migrar a Supabase desbloquea Realtime, persistencia real y futuros analytics. Es el gap más crítico según el PDF de especificaciones.
 
 
 
@@ -704,19 +754,19 @@ Orders son el core del POS. Actualmente en localStorage = no hay sincronización
 
 
 
-\## 11. LAST UPDATE 🔄
+\## 12. LAST UPDATE 🔄
 
 
 
 Date:
 
-2026-03-19
+2026-03-21
 
 
 
 Session:
 
-Chunk 3+4+5: Nuevo Supabase desde 0 + Auth + Realtime para menu/categorías
+Chunk 6: Audit log, print system, reports con rangos, inventory mejoras, auth, toast errors, migrations 005/006
 
 
 
@@ -724,5 +774,5 @@ Summary:
 
 
 
-Nuevo proyecto Supabase (bpamwnayttumghxbdtrs). 5 usuarios creados en Supabase Auth via Admin API (admin, mesero1, mesero2, cocina_a, cocina_b — emails @pqvv.local). Schema completo creado via Management API: profiles (con RLS), categories (con orden column), menu\_items (con cocina column), storage bucket menu-images. RLS policies usando get\_my\_role() helper (lee JWT user\_metadata para evitar referencias circulares). User interface sin password. login/logout ahora async con supabase.auth. Session restore en mount via onAuthStateChange. Realtime habilitado para menu\_items y categories via ALTER PUBLICATION — context.tsx escucha INSERT/UPDATE/DELETE y actualiza estado local. mapMenuItem y mapCategory extraídos como helpers reutilizables.
+Nuevo proyecto Supabase (bpamwnayttumghxbdtrs). 5 usuarios en Auth (@pqvv.local). Schema: profiles (RLS), categories, menu\_items (cocina, receta, extras JSONB), storage bucket menu-images. RLS via get\_my\_role(). Realtime para menu\_items y categories. Audit log (logAction) en context.tsx + AuditLogViewer en admin. Print system para tickets de cocina y cuenta. Reports con selector hoy/semana/mes. Inventory con AlertDialog para borrado y validación de stock negativo. Migration 005 (transferencia payment method), 006 (receta/extras columns). Login sin acceso rápido demo. Placeholder.svg añadido.
 

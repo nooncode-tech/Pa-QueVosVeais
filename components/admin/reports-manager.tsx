@@ -1,11 +1,21 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { TrendingUp, DollarSign, ShoppingBag, Clock, Users, Utensils } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { TrendingUp, DollarSign, ShoppingBag, Clock, Users, Utensils, BarChart3 } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatPrice } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from 'recharts'
 
 type DateRange = 'today' | 'week' | 'month'
 
@@ -21,7 +31,7 @@ function getRangeStart(range: DateRange): Date {
     d.setHours(0, 0, 0, 0)
   } else if (range === 'week') {
     const day = d.getDay()
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1) // Monday
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
     d.setDate(diff)
     d.setHours(0, 0, 0, 0)
   } else {
@@ -31,12 +41,77 @@ function getRangeStart(range: DateRange): Date {
   return d
 }
 
+interface HistoricalDay {
+  day: string
+  ventas: number
+  pedidos: number
+}
+
+interface OrderRow {
+  id: string
+  status: string
+  canal: string
+  mesa: number | null
+  items: Array<{ menuItem: { id: string; nombre: string; precio: number }; cantidad: number; extras?: Array<{ precio: number }> }>
+  created_at: string
+  tiempo_inicio_preparacion: string | null
+  tiempo_fin_preparacion: string | null
+}
+
 export function ReportsManager() {
   const { orders, tableSessions } = useApp()
   const [range, setRange] = useState<DateRange>('today')
+  const [historicalData, setHistoricalData] = useState<HistoricalDay[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const rangeStart = useMemo(() => getRangeStart(range), [range])
 
+  // Load historical completed orders from Supabase for charts
+  useEffect(() => {
+    const loadHistory = async () => {
+      setLoadingHistory(true)
+      const since = new Date()
+
+      if (range === 'today') {
+        since.setHours(0, 0, 0, 0)
+      } else if (range === 'week') {
+        since.setDate(since.getDate() - 6)
+        since.setHours(0, 0, 0, 0)
+      } else {
+        since.setDate(1)
+        since.setHours(0, 0, 0, 0)
+      }
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, status, items, created_at')
+        .eq('status', 'entregado')
+        .gte('created_at', since.toISOString())
+        .order('created_at')
+
+      if (error || !data) { setLoadingHistory(false); return }
+
+      // Group by day
+      const byDay: Record<string, { ventas: number; pedidos: number }> = {}
+      for (const row of data as OrderRow[]) {
+        const day = new Date(row.created_at).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' })
+        if (!byDay[day]) byDay[day] = { ventas: 0, pedidos: 0 }
+        const total = (row.items ?? []).reduce((sum: number, item) => {
+          const extrasTotal = (item.extras ?? []).reduce((e: number, ex) => e + ex.precio, 0)
+          return sum + (item.menuItem.precio + extrasTotal) * item.cantidad
+        }, 0)
+        byDay[day].ventas += total
+        byDay[day].pedidos += 1
+      }
+
+      setHistoricalData(Object.entries(byDay).map(([day, v]) => ({ day, ...v })))
+      setLoadingHistory(false)
+    }
+
+    loadHistory()
+  }, [range])
+
+  // Active orders from context (non-delivered) + completed from Supabase in historical
   const rangeOrders = useMemo(
     () => orders.filter(o => new Date(o.createdAt) >= rangeStart),
     [orders, rangeStart]
@@ -46,16 +121,27 @@ export function ReportsManager() {
     [rangeOrders]
   )
 
-  const totalRevenue = useMemo(() => completedOrders.reduce((sum, order) =>
-    sum + order.items.reduce((s, item) => {
-      const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
-      return s + (item.menuItem.precio + extrasTotal) * item.cantidad
-    }, 0), 0), [completedOrders])
+  const totalRevenue = useMemo(() => {
+    // Use historical data total when available (includes DB-persisted completed orders)
+    if (historicalData.length > 0) {
+      return historicalData.reduce((sum, d) => sum + d.ventas, 0)
+    }
+    return completedOrders.reduce((sum, order) =>
+      sum + order.items.reduce((s, item) => {
+        const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
+        return s + (item.menuItem.precio + extrasTotal) * item.cantidad
+      }, 0), 0)
+  }, [completedOrders, historicalData])
+
+  const totalCompletedOrders = useMemo(() => {
+    if (historicalData.length > 0) return historicalData.reduce((sum, d) => sum + d.pedidos, 0)
+    return completedOrders.length
+  }, [completedOrders, historicalData])
 
   const totalItems = useMemo(() => completedOrders.reduce((sum, order) =>
     sum + order.items.reduce((s, item) => s + item.cantidad, 0), 0), [completedOrders])
 
-  const avgOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0
+  const avgOrderValue = totalCompletedOrders > 0 ? totalRevenue / totalCompletedOrders : 0
 
   const ordersWithTimes = completedOrders.filter(o => o.tiempoInicioPreparacion && o.tiempoFinPreparacion)
   const avgPrepTime = ordersWithTimes.length > 0
@@ -86,6 +172,9 @@ export function ReportsManager() {
   const activeTables = tableSessions.filter(s => s.activa).length
 
   const today = new Date()
+
+  // Chart color
+  const chartColor = 'hsl(var(--primary))'
 
   return (
     <div className="p-3">
@@ -136,7 +225,7 @@ export function ReportsManager() {
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-5 w-5 text-success" />
               <div>
-                <p className="text-lg font-bold text-success">{completedOrders.length}</p>
+                <p className="text-lg font-bold text-success">{totalCompletedOrders}</p>
                 <p className="text-[9px] text-muted-foreground">Pedidos completados</p>
               </div>
             </div>
@@ -167,6 +256,40 @@ export function ReportsManager() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sales Chart */}
+      {historicalData.length > 1 && (
+        <Card className="mb-3">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-xs flex items-center gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Ventas por día
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={historicalData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
+                <Tooltip
+                  contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid hsl(var(--border))' }}
+                  formatter={(value: number) => [formatPrice(value), 'Ventas']}
+                />
+                <Bar dataKey="ventas" fill={chartColor} radius={[3, 3, 0, 0]} maxBarSize={32} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {loadingHistory && historicalData.length === 0 && (
+        <Card className="mb-3">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground">Cargando datos históricos...</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Orders by Channel */}
       <Card className="mb-3">

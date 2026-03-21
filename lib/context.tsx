@@ -136,6 +136,7 @@ interface AppContextType extends AppState {
   updateCategory: (categoryId: string, updates: Partial<MenuCategory>) => void
   deleteCategory: (categoryId: string) => void
   reorderCategories: (categoryIds: string[]) => void
+  reorderMenuItems: (categoryId: string, itemIds: string[]) => void
   
   // Table actions
   tables: TableConfig[]
@@ -944,6 +945,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // ── Inventory RPC helpers ────────────────────────────────────────────────────
+  function buildDeductions(cartItems: { menuItem: MenuItem; cantidad: number; extras?: MenuItem['extras'] }[]) {
+    const totals: Record<string, number> = {}
+    for (const ci of cartItems) {
+      for (const ri of ci.menuItem.receta ?? []) {
+        totals[ri.ingredientId] = (totals[ri.ingredientId] ?? 0) + ri.cantidad * ci.cantidad
+      }
+      for (const ex of ci.extras ?? []) {
+        for (const ri of ex.receta ?? []) {
+          totals[ri.ingredientId] = (totals[ri.ingredientId] ?? 0) + ri.cantidad * ci.cantidad
+        }
+      }
+    }
+    return Object.entries(totals)
+      .filter(([, qty]) => qty > 0)
+      .map(([ingredient_id, cantidad]) => ({ ingredient_id, cantidad }))
+  }
+
   // ============ ORDER ACTIONS ============
   const createOrder = useCallback((
     canal: Channel,
@@ -952,7 +971,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ): Order | null => {
     if (state.cart.length === 0) return null
     
-    // Check inventory and deduct ingredients
+    // Check inventory and deduct ingredients (optimistic local update)
+    const deductions = buildDeductions(state.cart)
     let newIngredients = [...state.ingredients]
     for (const cartItem of state.cart) {
       const { canPrepare } = canPrepareItem(cartItem.menuItem, newIngredients)
@@ -1102,7 +1122,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       created_at: order.createdAt.toISOString(),
       updated_at: order.updatedAt.toISOString(),
     }).then(({ error }) => {
-      if (error) { console.error('Error guardando pedido en Supabase:', error); toast({ title: 'Error al guardar pedido', description: 'El pedido se registró localmente pero no se pudo sincronizar.', variant: 'destructive' }) }
+      if (error) { console.error('Error guardando pedido en Supabase:', error); toast({ title: 'Error al guardar pedido', description: 'El pedido se registró localmente pero no se pudo sincronizar.', variant: 'destructive' }); return }
+      // Atomically deduct ingredients in DB after order is confirmed saved
+      if (deductions.length > 0) {
+        supabase.rpc('deduct_ingredients', { deductions }).then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('Error deduciendo ingredientes:', rpcErr)
+        })
+      }
     })
 
     const canalLabel = order.canal === 'mesa' ? `Mesa ${order.mesa}` : order.canal === 'delivery' ? `Delivery ${order.nombreCliente || ''}` : 'Para llevar'
@@ -1808,6 +1834,21 @@ const addMenuItem = useCallback(
 
 }, [logAction])
   
+  const reorderMenuItems = useCallback((_categoryId: string, itemIds: string[]) => {
+    setState(prev => ({
+      ...prev,
+      menuItems: prev.menuItems.map(item => {
+        const newOrden = itemIds.indexOf(item.id)
+        if (newOrden === -1) return item
+        return { ...item, orden: newOrden + 1 }
+      }),
+    }))
+    itemIds.forEach((id, index) => {
+      supabase.from('menu_items').update({ orden: index + 1 }).eq('id', id)
+        .then(({ error }) => { if (error) console.error('Error reordenando platillo:', error) })
+    })
+  }, [])
+
   const reorderCategories = useCallback((categoryIds: string[]) => {
     setState(prev => ({
       ...prev,
@@ -1816,6 +1857,11 @@ const addMenuItem = useCallback(
         return cat ? { ...cat, orden: index + 1 } : null
       }).filter((c): c is MenuCategory => c !== null),
     }))
+    // Persist order to Supabase
+    categoryIds.forEach((id, index) => {
+      supabase.from('categories').update({ orden: index + 1 }).eq('id', id)
+        .then(({ error }) => { if (error) console.error('Error reordenando categoría:', error) })
+    })
   }, [])
   
   // ============ TABLE ACTIONS ============
@@ -2012,6 +2058,7 @@ const addMenuItem = useCallback(
     if (order.status === 'entregado' || order.status === 'cancelado') return false
     
     // Restore ingredients for any order that was created (ingredients were deducted at creation)
+    const restorations = buildDeductions(order.items.map(i => ({ menuItem: i.menuItem, cantidad: i.cantidad, extras: i.extras })))
     let newIngredients = [...state.ingredients]
     for (const item of order.items) {
       newIngredients = restoreIngredients(item.menuItem, item.cantidad, newIngredients, item.extras)
@@ -2057,7 +2104,12 @@ const addMenuItem = useCallback(
 
     // Persist to Supabase
     supabase.from('orders').delete().eq('id', orderId).then(({ error }) => {
-      if (error) console.error('Error eliminando pedido en Supabase:', error)
+      if (error) { console.error('Error eliminando pedido en Supabase:', error); return }
+      if (restorations.length > 0) {
+        supabase.rpc('restore_ingredients', { restorations }).then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('Error restaurando ingredientes:', rpcErr)
+        })
+      }
     })
 
     logAction('cancelar_pedido', `Pedido cancelado - Razón: ${reason}${motivo ? ` (${motivo})` : ''}`, 'order', orderId)
@@ -2376,6 +2428,7 @@ const addMenuItem = useCallback(
       updateCategory,
       deleteCategory,
       reorderCategories,
+      reorderMenuItems,
       tables: state.tables,
       addTable,
       updateTable,
