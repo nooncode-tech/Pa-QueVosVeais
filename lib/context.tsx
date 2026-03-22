@@ -28,7 +28,6 @@ import {
   type CancelReason,
   type DeliveryZone,
   type MenuCategory,
-  type Extra,
   type TableConfig,
   MENU_ITEMS,
   DEFAULT_INGREDIENTS,
@@ -39,7 +38,6 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TABLES,
   generateId,
-  generateOrderNumber,
   generateDeviceId,
   calculateOrderTotal,
   deductIngredients,
@@ -81,6 +79,7 @@ interface AppState {
   currentTable: number | null
   currentUser: User | null
   currentSessionId: string | null
+  orderCounter: number
 }
 
 interface AppContextType extends AppState {
@@ -125,6 +124,9 @@ interface AppContextType extends AppState {
   // Reward actions
   applyReward: (sessionId: string, rewardId: string) => boolean
   getAvailableRewards: (sessionId: string) => Reward[]
+  addReward: (reward: Omit<Reward, 'id'>) => void
+  updateReward: (rewardId: string, updates: Partial<Reward>) => void
+  deleteReward: (rewardId: string) => void
   
   // Menu actions
   updateMenuItem: (itemId: string, updates: Partial<MenuItem>, imageFile?: File) => void
@@ -174,6 +176,7 @@ interface AppContextType extends AppState {
   getDeliveryZones: () => DeliveryZone[]
   updateDeliveryZone: (zonaNombre: string, updates: Partial<DeliveryZone>) => void
   addDeliveryZone: (zone: DeliveryZone) => void
+  deleteDeliveryZone: (zonaNombre: string) => void
   calculateDeliveryCost: (zonaNombre: string) => number
   
   // Payment utility actions
@@ -269,6 +272,7 @@ function mapSession(row: Record<string, unknown>): Omit<TableSession, 'orders'> 
     paymentMethod: (row.payment_method as PaymentMethod) ?? undefined,
     paymentStatus: row.payment_status as PaymentStatus,
     paidAt: row.paid_at ? new Date(row.paid_at as string) : undefined,
+    feedbackDone: (row.feedback_done as boolean) ?? false,
   }
 }
 
@@ -319,6 +323,7 @@ function getDefaultState(): AppState {
     cart: [],
     currentTable: null,
     currentUser: null,
+    orderCounter: 0,
     currentSessionId: null,
   }
 }
@@ -553,6 +558,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const cargarOrderCounter = async () => {
+    const today = new Date().toISOString().split('T')[0]
+    const { data } = await supabase
+      .from('orders')
+      .select('numero')
+      .gte('created_at', `${today}T00:00:00.000Z`)
+      .order('numero', { ascending: false })
+      .limit(1)
+    const maxNumero = data && data.length > 0 ? (data[0].numero as number) : 0
+    setState(prev => ({ ...prev, orderCounter: maxNumero }))
+  }
+
   const cargarQRTokens = async () => {
     const { data, error } = await supabase
       .from('qr_tokens')
@@ -664,6 +681,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   cargarConfig()
   cargarTables()
   cargarWaiterCalls()
+  cargarOrderCounter()
   cargarQRTokens()
   cargarAppliedRewards()
   cargarAuditLogs()
@@ -1097,13 +1115,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       newIngredients = deductIngredients(cartItem.menuItem, cartItem.cantidad, newIngredients, cartItem.extras)
     }
     
-    // For table orders, number relative to session; for others, use global counter
+    // For table orders, number relative to session; for others, use daily global counter
     let orderNumero: number
     if (mesa) {
       const session = state.tableSessions.find(s => s.mesa === mesa && s.activa)
       orderNumero = (session?.orders?.length || 0) + 1
     } else {
-      orderNumero = generateOrderNumber()
+      orderNumero = state.orderCounter + 1
     }
 
     const order: Order = {
@@ -1192,6 +1210,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ingredients: newIngredients,
         menuItems,
         cart: [],
+        orderCounter: mesa ? prev.orderCounter : prev.orderCounter + 1,
       }
     })
 
@@ -1592,30 +1611,31 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     ...prev,
     tableSessions: prev.tableSessions.map(s =>
       s.id === sessionId
-        ? {
-            ...s,
-            paymentStatus: 'pendiente',
-            paymentMethod: undefined,
-            billStatus: 'abierta',
-          }
+        ? { ...s, paymentStatus: 'pendiente', paymentMethod: undefined, billStatus: 'abierta' }
         : s
     ),
   }))
+  supabase.from('table_sessions')
+    .update({ payment_status: 'pendiente', payment_method: null, bill_status: 'abierta' })
+    .eq('id', sessionId)
+    .then(({ error }) => { if (error) console.error('Error reseteando pago:', error) })
 }, [])
 
 
 
   
   const markFeedbackDone = useCallback((sessionId: string) => {
-  setState(prev => ({
-    ...prev,
-    tableSessions: prev.tableSessions.map(s =>
-      s.id === sessionId
-        ? { ...s, feedbackDone: true }
-        : s
-    ),
-  }))
-}, [])
+    setState(prev => ({
+      ...prev,
+      tableSessions: prev.tableSessions.map(s =>
+        s.id === sessionId ? { ...s, feedbackDone: true } : s
+      ),
+    }))
+    supabase.from('table_sessions')
+      .update({ feedback_done: true })
+      .eq('id', sessionId)
+      .then(({ error }) => { if (error) console.error('Error guardando feedback:', error) })
+  }, [])
 
   // ============ EMERGENCY ACTIONS ============
   const emergencyCloseAllTables = useCallback(() => {
@@ -1799,7 +1819,46 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       return true
     })
   }, [state.rewards, state.appliedRewards])
-  
+
+  const addReward = useCallback((reward: Omit<Reward, 'id'>) => {
+    const id = generateId()
+    const newReward: Reward = { ...reward, id }
+    setState(prev => ({ ...prev, rewards: [...prev.rewards, newReward] }))
+    supabase.from('rewards').insert({
+      id,
+      nombre: reward.nombre,
+      descripcion: reward.descripcion,
+      tipo: reward.tipo,
+      valor: reward.valor,
+      accion: reward.accion,
+      activo: reward.activo,
+      usos_maximos: reward.usosMaximos ?? null,
+    }).then(({ error }) => { if (error) console.error('Error creando recompensa:', error) })
+  }, [])
+
+  const updateReward = useCallback((rewardId: string, updates: Partial<Reward>) => {
+    setState(prev => ({
+      ...prev,
+      rewards: prev.rewards.map(r => r.id === rewardId ? { ...r, ...updates } : r),
+    }))
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (updates.nombre !== undefined) payload.nombre = updates.nombre
+    if (updates.descripcion !== undefined) payload.descripcion = updates.descripcion
+    if (updates.tipo !== undefined) payload.tipo = updates.tipo
+    if (updates.valor !== undefined) payload.valor = updates.valor
+    if (updates.accion !== undefined) payload.accion = updates.accion
+    if (updates.activo !== undefined) payload.activo = updates.activo
+    if (updates.usosMaximos !== undefined) payload.usos_maximos = updates.usosMaximos ?? null
+    supabase.from('rewards').update(payload).eq('id', rewardId)
+      .then(({ error }) => { if (error) console.error('Error actualizando recompensa:', error) })
+  }, [])
+
+  const deleteReward = useCallback((rewardId: string) => {
+    setState(prev => ({ ...prev, rewards: prev.rewards.filter(r => r.id !== rewardId) }))
+    supabase.from('rewards').delete().eq('id', rewardId)
+      .then(({ error }) => { if (error) console.error('Error eliminando recompensa:', error) })
+  }, [])
+
   // ============ MENU ACTIONS ============
   const updateMenuItem = useCallback(
   async (itemId: string, updates: Partial<MenuItem>, imageFile?: File) => {
@@ -2016,9 +2075,16 @@ const addMenuItem = useCallback(
         return { ...item, orden: newOrden + 1 }
       }),
     }))
-    itemIds.forEach((id, index) => {
-      supabase.from('menu_items').update({ orden: index + 1 }).eq('id', id)
-        .then(({ error }) => { if (error) console.error('Error reordenando platillo:', error) })
+    Promise.all(
+      itemIds.map((id, index) =>
+        supabase.from('menu_items').update({ orden: index + 1 }).eq('id', id)
+      )
+    ).then(results => {
+      const failed = results.filter(r => r.error)
+      if (failed.length > 0) {
+        console.error('Error reordenando platillos:', failed[0].error)
+        toast({ title: 'Error al reordenar', description: 'No se pudo guardar el nuevo orden.', variant: 'destructive' })
+      }
     })
   }, [])
 
@@ -2030,10 +2096,16 @@ const addMenuItem = useCallback(
         return cat ? { ...cat, orden: index + 1 } : null
       }).filter((c): c is MenuCategory => c !== null),
     }))
-    // Persist order to Supabase
-    categoryIds.forEach((id, index) => {
-      supabase.from('categories').update({ orden: index + 1 }).eq('id', id)
-        .then(({ error }) => { if (error) console.error('Error reordenando categoría:', error) })
+    Promise.all(
+      categoryIds.map((id, index) =>
+        supabase.from('categories').update({ orden: index + 1 }).eq('id', id)
+      )
+    ).then(results => {
+      const failed = results.filter(r => r.error)
+      if (failed.length > 0) {
+        console.error('Error reordenando categorías:', failed[0].error)
+        toast({ title: 'Error al reordenar', description: 'No se pudo guardar el nuevo orden.', variant: 'destructive' })
+      }
     })
   }, [])
   
@@ -2223,7 +2295,7 @@ const addMenuItem = useCallback(
   // ============ AUDIT ============
   
   // ============ ORDER CANCEL/EDIT ACTIONS ============
-  const cancelOrder = useCallback((orderId: string, reason: CancelReason, motivo?: string, userId?: string): boolean => {
+  const cancelOrder = useCallback((orderId: string, reason: CancelReason, motivo?: string, _userId?: string): boolean => {
     const order = state.orders.find(o => o.id === orderId)
     if (!order) return false
     
@@ -2558,6 +2630,15 @@ const addMenuItem = useCallback(
     }).then(({ error }) => { if (error) console.error('Error creando zona:', error) })
   }, [])
   
+  const deleteDeliveryZone = useCallback((zonaNombre: string) => {
+    setState(prev => ({
+      ...prev,
+      deliveryZones: prev.deliveryZones.filter(z => z.nombre !== zonaNombre),
+    }))
+    supabase.from('delivery_zones').delete().eq('nombre', zonaNombre)
+      .then(({ error }) => { if (error) console.error('Error eliminando zona:', error) })
+  }, [])
+
   const calculateDeliveryCost = useCallback((zonaNombre: string): number => {
     return getDeliveryZoneCost(zonaNombre, state.deliveryZones)
   }, [state.deliveryZones])
@@ -2633,6 +2714,9 @@ const addMenuItem = useCallback(
     getPendingCalls,
     applyReward,
     getAvailableRewards,
+    addReward,
+    updateReward,
+    deleteReward,
     updateMenuItem,
     addMenuItem,
       deleteMenuItem,
@@ -2670,6 +2754,7 @@ const addMenuItem = useCallback(
     getDeliveryZones,
     updateDeliveryZone,
     addDeliveryZone,
+    deleteDeliveryZone,
     calculateDeliveryCost,
     resetSessionPaymentStatus,
     markFeedbackDone,

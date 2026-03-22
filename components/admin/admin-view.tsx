@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   Cog,
   ClipboardList,
+  Star,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,9 +47,10 @@ import { DailyClosing } from './daily-closing'
 import { TableHistory } from './table-history'
 import { AuditLogViewer } from './audit-log-viewer'
 import { OrdersHistory } from './orders-history'
+import { RewardsManager } from './rewards-manager'
 import { useApp } from '@/lib/context'
 
-type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history'
+type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history' | 'rewards'
 
 interface AdminViewProps {
   onBack: () => void
@@ -93,6 +95,7 @@ export function AdminView({ onBack }: AdminViewProps) {
         { id: 'menu', label: 'Menu', icon: <UtensilsCrossed className="h-5 w-5" /> },
         { id: 'inventory', label: 'Inventario', icon: <Archive className="h-5 w-5" /> },
         { id: 'delivery', label: 'Zonas de Entrega', icon: <Truck className="h-5 w-5" /> },
+        { id: 'rewards', label: 'Recompensas', icon: <Star className="h-5 w-5" /> },
         { id: 'refunds', label: 'Reembolsos', icon: <RotateCcw className="h-5 w-5" />, badge: pendingRefundsCount > 0 ? pendingRefundsCount : undefined },
       ]
     },
@@ -179,6 +182,7 @@ export function AdminView({ onBack }: AdminViewProps) {
           {screen === 'menu' && <MenuManager />}
           {screen === 'inventory' && <InventoryManager />}
           {screen === 'delivery' && <DeliveryZonesManager />}
+          {screen === 'rewards' && <RewardsManager />}
           {screen === 'refunds' && <RefundsManager />}
           {screen === 'qr' && <QRManager />}
           {screen === 'history' && <TableHistory />}
@@ -375,6 +379,7 @@ export function AdminView({ onBack }: AdminViewProps) {
             {screen === 'menu' && <MenuManager />}
             {screen === 'inventory' && <InventoryManager />}
             {screen === 'delivery' && <DeliveryZonesManager />}
+            {screen === 'rewards' && <RewardsManager />}
             {screen === 'refunds' && <RefundsManager />}
             {screen === 'qr' && <QRManager />}
             {screen === 'history' && <TableHistory />}

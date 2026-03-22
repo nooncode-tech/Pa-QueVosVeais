@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, Gift, Bell, Check } from 'lucide-react'
+import { ChevronLeft, Gift, Bell, Check, Loader2 } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { formatPrice } from '@/lib/store'
@@ -29,6 +29,7 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
     c => c.mesa === mesa && c.tipo === 'cuenta' && !c.atendido
   )
   const [billRequested, setBillRequested] = useState(hasPendingBillCall)
+  const [billLoading, setBillLoading] = useState(false)
 
   if (!session) {
     return (
@@ -60,8 +61,10 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
   }
 
   const handleRequestBill = () => {
+    setBillLoading(true)
     createWaiterCall(mesa, 'cuenta', 'El cliente solicita la cuenta')
     setBillRequested(true)
+    setBillLoading(false)
   }
 
   const isPaid = session.paymentStatus === 'pagado'
@@ -227,8 +230,13 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
             <Button
               className="w-full bg-foreground hover:bg-foreground/90 text-background h-11 text-sm font-semibold rounded-xl gap-2"
               onClick={handleRequestBill}
+              disabled={billLoading}
             >
-              <Bell className="h-4 w-4" />
+              {billLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bell className="h-4 w-4" />
+              )}
               Pedir la cuenta
             </Button>
           )}

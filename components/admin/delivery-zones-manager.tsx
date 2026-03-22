@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, Edit2, MapPin, Clock, DollarSign, Check, X } from 'lucide-react'
+import { Plus, Trash2, Edit2, MapPin, Clock, DollarSign } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,7 +26,8 @@ import {
 import type { DeliveryZone } from '@/lib/store'
 
 export function DeliveryZonesManager() {
-  const { deliveryZones, updateDeliveryZone, addDeliveryZone } = useApp()
+  const { deliveryZones, updateDeliveryZone, addDeliveryZone, deleteDeliveryZone } = useApp()
+  const [confirmDeleteZone, setConfirmDeleteZone] = useState<string | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingZone, setEditingZone] = useState<DeliveryZone | null>(null)
   
@@ -151,13 +152,30 @@ export function DeliveryZonesManager() {
                     />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(zone)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(zone)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      {confirmDeleteZone === zone.nombre ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-7 text-[10px] px-2"
+                          onClick={() => { deleteDeliveryZone(zone.nombre); setConfirmDeleteZone(null) }}
+                        >
+                          ¿Confirmar?
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setConfirmDeleteZone(zone.nombre)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

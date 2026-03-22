@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronLeft, Check, ChefHat, Package, Truck } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronLeft, Check, ChefHat, Package, Truck, Loader2 } from 'lucide-react'
 import { formatTime, getStatusLabel, type Order } from '@/lib/store'
 import { useApp } from '@/lib/context'
 
@@ -19,6 +20,7 @@ const STATUS_STEPS = [
 
 export function OrderStatusView({ orders, mesa, onBack }: OrderStatusViewProps) {
   const { cancelOrder, canCancelOrder } = useApp()
+  const [cancelingId, setCancelingId] = useState<string | null>(null)
 
   const getStepIndex = (status: string) => {
     return STATUS_STEPS.findIndex(s => s.key === status)
@@ -188,20 +190,26 @@ export function OrderStatusView({ orders, mesa, onBack }: OrderStatusViewProps) 
                   {/* 🔴 CANCELAR PEDIDO */}
                   {canCancelOrder(order.id) && (
                     <button
-                      className="mt-3 text-xs text-red-600 underline"
+                      className="mt-3 text-xs text-red-600 underline flex items-center gap-1 disabled:opacity-50"
+                      disabled={cancelingId === order.id}
                       onClick={() => {
                         const ok = confirm(
                           '¿Cancelar este pedido? Esta acción no se puede deshacer.'
                         )
                         if (!ok) return
 
+                        setCancelingId(order.id)
                         cancelOrder(
                           order.id,
                           'cliente_solicito',
                           'Cancelado antes de preparacion'
                         )
+                        setCancelingId(null)
                       }}
                     >
+                      {cancelingId === order.id && (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      )}
                       Cancelar pedido
                     </button>
                   )}

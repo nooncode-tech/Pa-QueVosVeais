@@ -72,10 +72,7 @@ export function UsersManager() {
       body: JSON.stringify(data),
     })
     const json = await res.json()
-    if (res.ok && json.profile) {
-      setProfiles(prev => [...prev, json.profile])
-      return null
-    }
+    if (res.ok) { await loadProfiles(); return null }
     return json.error as string
   }
 
@@ -86,10 +83,7 @@ export function UsersManager() {
       body: JSON.stringify({ userId, updates }),
     })
     const json = await res.json()
-    if (res.ok && json.profile) {
-      setProfiles(prev => prev.map(p => p.id === userId ? json.profile : p))
-      return null
-    }
+    if (res.ok) { await loadProfiles(); return null }
     return json.error as string
   }
 
@@ -99,10 +93,7 @@ export function UsersManager() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     })
-    if (res.ok) {
-      setProfiles(prev => prev.filter(p => p.id !== userId))
-      return null
-    }
+    if (res.ok) { await loadProfiles(); return null }
     const json = await res.json()
     return json.error as string
   }
