@@ -6,7 +6,7 @@ import { Search, ShoppingBag, ChevronLeft, Plus, AlertCircle } from 'lucide-reac
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatPrice, type MenuItem, canPrepareItem } from '@/lib/store'
+import { formatPrice, type MenuItem, canPrepareItem, ETIQUETAS_CONFIG } from '@/lib/store'
 
 interface MenuViewProps {
   mesa: number
@@ -216,6 +216,18 @@ export function MenuView({
                         <p className="text-[12px] text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
                           {item.descripcion}
                         </p>
+                      )}
+                      {item.etiquetas && item.etiquetas.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.etiquetas.map(tag => {
+                            const cfg = ETIQUETAS_CONFIG[tag]
+                            return cfg ? (
+                              <span key={tag} className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${cfg.color}`}>
+                                {cfg.emoji} {cfg.label}
+                              </span>
+                            ) : null
+                          })}
+                        </div>
                       )}
                       <div className="flex items-center justify-between mt-2">
                         <p className="text-sm font-bold text-foreground">

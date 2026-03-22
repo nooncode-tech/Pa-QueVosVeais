@@ -43,6 +43,13 @@ export function DailyClosing() {
   const [daySessions, setDaySessions] = useState<TableSession[]>([])
   const [dayRefunds, setDayRefunds] = useState<Refund[]>([])
 
+  // Cash denomination counting
+  const DENOMINATIONS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1]
+  const [billCounts, setBillCounts] = useState<Record<number, string>>(
+    Object.fromEntries(DENOMINATIONS.map(d => [d, '']))
+  )
+  const cashTotal = DENOMINATIONS.reduce((sum, d) => sum + d * (parseInt(billCounts[d]) || 0), 0)
+
   useEffect(() => {
     const loadDay = async () => {
       setLoading(true)
@@ -510,6 +517,62 @@ export function DailyClosing() {
           </Card>
         </div>
         
+        {/* Cash Drawer Count */}
+        <Card className="mt-4">
+          <CardHeader className="py-2 px-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Banknote className="h-4 w-4" />
+              Conteo de Caja (Efectivo)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
+              {DENOMINATIONS.map(d => (
+                <div key={d} className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-14 text-right flex-shrink-0">
+                    ${d >= 1 ? d.toLocaleString() : d}
+                  </span>
+                  <span className="text-xs text-muted-foreground">×</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={billCounts[d]}
+                    onChange={e => setBillCounts(prev => ({ ...prev, [d]: e.target.value }))}
+                    placeholder="0"
+                    className="h-6 w-16 text-xs border border-border rounded px-1.5 bg-background text-foreground"
+                  />
+                  <span className="text-xs text-foreground font-medium ml-auto">
+                    {(parseInt(billCounts[d]) || 0) > 0 ? `$${(d * (parseInt(billCounts[d]) || 0)).toLocaleString()}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-border pt-2 flex justify-between items-center">
+              <span className="text-sm font-semibold text-foreground">Total en caja:</span>
+              <span className={`text-base font-bold ${cashTotal > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                {formatPrice(cashTotal)}
+              </span>
+            </div>
+            {stats.salesByPayment['efectivo'] !== undefined && cashTotal > 0 && (
+              <div className={`mt-2 p-2 rounded-lg text-xs text-center font-medium ${
+                Math.abs(cashTotal - stats.salesByPayment['efectivo']) < 1
+                  ? 'bg-green-100 text-green-800'
+                  : cashTotal > stats.salesByPayment['efectivo']
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-red-100 text-red-800'
+              }`}>
+                {Math.abs(cashTotal - stats.salesByPayment['efectivo']) < 1
+                  ? '✓ Caja cuadrada'
+                  : cashTotal > stats.salesByPayment['efectivo']
+                    ? `Sobrante: ${formatPrice(cashTotal - stats.salesByPayment['efectivo'])}`
+                    : `Faltante: ${formatPrice(stats.salesByPayment['efectivo'] - cashTotal)}`
+                }
+                {' '}(Sistema: {formatPrice(stats.salesByPayment['efectivo'])})
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Top Items */}
         <Card className="mt-4">
           <CardHeader className="py-2 px-3">

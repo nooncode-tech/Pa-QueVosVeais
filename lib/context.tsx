@@ -215,6 +215,7 @@ function mapMenuItem(row: Record<string, unknown>): MenuItem {
     receta: (row.receta as MenuItem['receta']) ?? [],
     extras: (row.extras as MenuItem['extras']) ?? [],
     gruposModificadores: (row.grupos_modificadores as MenuItem['gruposModificadores']) ?? [],
+    etiquetas: (row.etiquetas as MenuItem['etiquetas']) ?? [],
   }
 }
 
@@ -1923,6 +1924,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     if (updates.receta !== undefined) payload.receta = updates.receta
     if (updates.extras !== undefined) payload.extras = updates.extras
     if (updates.gruposModificadores !== undefined) payload.grupos_modificadores = updates.gruposModificadores
+    if (updates.etiquetas !== undefined) payload.etiquetas = updates.etiquetas
     if (imageUrl !== undefined) payload.image = imageUrl
 
     const { error } = await supabase
@@ -1972,6 +1974,7 @@ const addMenuItem = useCallback(
           receta: item.receta ?? [],
           extras: item.extras ?? [],
           grupos_modificadores: item.gruposModificadores ?? [],
+          etiquetas: item.etiquetas ?? [],
         }
       ])
       .select()

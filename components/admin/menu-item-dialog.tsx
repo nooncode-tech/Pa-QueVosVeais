@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient, type ModifierGroup, type ModifierOption } from '@/lib/store'
+import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient, type ModifierGroup, type EtiquetaItem, ETIQUETAS_CONFIG } from '@/lib/store'
 
 interface MenuItemDialogProps {
   item: MenuItem | null
@@ -29,6 +29,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const [extras, setExtras] = useState<Extra[]>(item?.extras || [])
   const [receta, setReceta] = useState<RecipeIngredient[]>(item?.receta || [])
   const [gruposModificadores, setGruposModificadores] = useState<ModifierGroup[]>(item?.gruposModificadores || [])
+  const [etiquetas, setEtiquetas] = useState<EtiquetaItem[]>(item?.etiquetas || [])
   
   // For new extra
   const [newExtraName, setNewExtraName] = useState('')
@@ -90,6 +91,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
       extras: extras.length > 0 ? extras : undefined,
       receta: receta.length > 0 ? receta : undefined,
       gruposModificadores: gruposModificadores.length > 0 ? gruposModificadores : undefined,
+      etiquetas: etiquetas.length > 0 ? etiquetas : undefined,
       disponible: item?.disponible ?? true,
     }
     
@@ -408,6 +410,33 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
             </div>
           </div>
           
+          {/* Etiquetas / Tags */}
+          <div className="border-t border-border pt-3">
+            <Label className="text-xs">Etiquetas dietéticas / alérgenos</Label>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Visible para el cliente al ver el platillo
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.entries(ETIQUETAS_CONFIG) as [EtiquetaItem, typeof ETIQUETAS_CONFIG[EtiquetaItem]][]).map(([key, cfg]) => {
+                const active = etiquetas.includes(key)
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setEtiquetas(prev =>
+                      active ? prev.filter(e => e !== key) : [...prev, key]
+                    )}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+                      active ? `${cfg.color} border-transparent font-medium` : 'border-border text-muted-foreground hover:border-primary/50'
+                    }`}
+                  >
+                    <span>{cfg.emoji}</span> {cfg.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Modifier Groups */}
           <div className="border-t border-border pt-3">
             <Label className="text-xs">Grupos de modificadores</Label>

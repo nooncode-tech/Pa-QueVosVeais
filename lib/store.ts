@@ -82,6 +82,20 @@ export interface SelectedModifier {
   opciones: Array<{ id: string; nombre: string; precioExtra: number }>
 }
 
+export type EtiquetaItem = 'vegano' | 'vegetariano' | 'sin-gluten' | 'picante' | 'muy-picante' | 'mariscos' | 'lacteos' | 'nueces' | 'sin-tacc'
+
+export const ETIQUETAS_CONFIG: Record<EtiquetaItem, { label: string; emoji: string; color: string }> = {
+  'vegano':       { label: 'Vegano',      emoji: '🌿', color: 'bg-green-100 text-green-800' },
+  'vegetariano':  { label: 'Vegetariano', emoji: '🥦', color: 'bg-lime-100 text-lime-800' },
+  'sin-gluten':   { label: 'Sin gluten',  emoji: '🌾', color: 'bg-yellow-100 text-yellow-800' },
+  'sin-tacc':     { label: 'Sin TACC',    emoji: '✅', color: 'bg-yellow-100 text-yellow-800' },
+  'picante':      { label: 'Picante',     emoji: '🌶️', color: 'bg-red-100 text-red-700' },
+  'muy-picante':  { label: 'Muy picante', emoji: '🔥', color: 'bg-red-200 text-red-800' },
+  'mariscos':     { label: 'Mariscos',    emoji: '🦐', color: 'bg-blue-100 text-blue-800' },
+  'lacteos':      { label: 'Lácteos',     emoji: '🥛', color: 'bg-sky-100 text-sky-800' },
+  'nueces':       { label: 'Nueces',      emoji: '🥜', color: 'bg-amber-100 text-amber-800' },
+}
+
 export interface MenuItem {
   id: string
   nombre: string
@@ -94,6 +108,7 @@ export interface MenuItem {
   extras?: Extra[]
   receta?: RecipeIngredient[]
   gruposModificadores?: ModifierGroup[]
+  etiquetas?: EtiquetaItem[]
   orden?: number
   horarioDisponible?: { inicio: string; fin: string }
 }

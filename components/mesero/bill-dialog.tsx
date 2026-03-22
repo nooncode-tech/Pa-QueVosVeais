@@ -43,6 +43,7 @@ const quickDiscounts = [
   const [showConfirm, setShowConfirm] = useState(false)
   const [paying, setPaying] = useState(false)
   const [showSplit, setShowSplit] = useState(false)
+  const [cashGiven, setCashGiven] = useState('')
   
   if (!session) {
     return null
@@ -318,6 +319,62 @@ const quickDiscounts = [
             </div>
           </div>
           
+          {/* Cobro en efectivo - calculadora de cambio */}
+          {selectedMethod === 'efectivo' && (
+            <div className="bg-secondary/50 rounded-xl p-3 space-y-2">
+              <h3 className="text-xs font-semibold text-foreground">Calculadora de cambio</h3>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Cliente paga:</Label>
+                <Input
+                  type="number"
+                  min={calculatedTotal}
+                  step="0.50"
+                  value={cashGiven}
+                  onChange={(e) => setCashGiven(e.target.value)}
+                  placeholder={formatPrice(calculatedTotal)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              {/* Quick amounts */}
+              <div className="flex gap-1.5 flex-wrap">
+                {[50, 100, 200, 500].map(bill => (
+                  bill >= calculatedTotal && (
+                    <button
+                      key={bill}
+                      type="button"
+                      onClick={() => setCashGiven(bill.toString())}
+                      className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${
+                        Number(cashGiven) === bill ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      ${bill}
+                    </button>
+                  )
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCashGiven(Math.ceil(calculatedTotal / 10) * 10 + '')}
+                  className="px-2.5 py-1 rounded-lg text-xs border border-border hover:border-primary/50 transition-colors"
+                >
+                  Exacto
+                </button>
+              </div>
+              {cashGiven && Number(cashGiven) >= calculatedTotal && (
+                <div className="flex justify-between items-center pt-1 border-t border-border">
+                  <span className="text-xs text-muted-foreground">Cambio a dar:</span>
+                  <span className="text-base font-bold text-success">
+                    {formatPrice(Number(cashGiven) - calculatedTotal)}
+                  </span>
+                </div>
+              )}
+              {cashGiven && Number(cashGiven) < calculatedTotal && (
+                <p className="text-xs text-destructive">
+                  Faltan {formatPrice(calculatedTotal - Number(cashGiven))}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-2 pt-2 flex-wrap">
             <Button

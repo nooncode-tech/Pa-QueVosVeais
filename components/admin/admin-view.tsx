@@ -22,7 +22,10 @@ import {
   Cog,
   ClipboardList,
   Star,
+  Moon,
+  Sun,
 } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -48,9 +51,11 @@ import { TableHistory } from './table-history'
 import { AuditLogViewer } from './audit-log-viewer'
 import { OrdersHistory } from './orders-history'
 import { RewardsManager } from './rewards-manager'
+import { ReservationsManager } from './reservations-manager'
 import { useApp } from '@/lib/context'
+import { CalendarDays } from 'lucide-react'
 
-type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history' | 'rewards'
+type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history' | 'rewards' | 'reservations'
 
 interface AdminViewProps {
   onBack: () => void
@@ -72,6 +77,7 @@ export function AdminView({ onBack }: AdminViewProps) {
   const [screen, setScreen] = useState<AdminScreen>('reports')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { orders, refunds } = useApp()
+  const { theme, setTheme } = useTheme()
   
   // Calculate badges
   const pendingOrdersCount = orders.filter(o => 
@@ -97,6 +103,7 @@ export function AdminView({ onBack }: AdminViewProps) {
         { id: 'delivery', label: 'Zonas de Entrega', icon: <Truck className="h-5 w-5" /> },
         { id: 'rewards', label: 'Recompensas', icon: <Star className="h-5 w-5" /> },
         { id: 'refunds', label: 'Reembolsos', icon: <RotateCcw className="h-5 w-5" />, badge: pendingRefundsCount > 0 ? pendingRefundsCount : undefined },
+        { id: 'reservations', label: 'Reservaciones', icon: <CalendarDays className="h-5 w-5" /> },
       ]
     },
     {
@@ -139,6 +146,13 @@ export function AdminView({ onBack }: AdminViewProps) {
                 Administrador
               </h1>
             </div>
+            <button
+              className="ml-auto p-1.5 rounded-full bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4 text-primary-foreground" /> : <Moon className="h-4 w-4 text-primary-foreground" />}
+            </button>
           </div>
           
           {/* Navigation Tabs - Scrollable on mobile */}
@@ -189,6 +203,12 @@ export function AdminView({ onBack }: AdminViewProps) {
           {screen === 'audit' && <AuditLogViewer />}
           {screen === 'users' && <UsersManager />}
           {screen === 'config' && <ConfigManager />}
+          {screen === 'reservations' && (
+            <div className="p-4">
+              <h2 className="text-base font-bold mb-4">Reservaciones</h2>
+              <ReservationsManager />
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -314,6 +334,27 @@ export function AdminView({ onBack }: AdminViewProps) {
 
           {/* Footer */}
           <div className="border-t border-border p-2 space-y-1">
+            {/* Dark Mode Toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "w-full justify-start gap-3 h-9 text-muted-foreground",
+                    sidebarCollapsed && "justify-center px-0"
+                  )}
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                >
+                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  {!sidebarCollapsed && <span className="text-sm">{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && (
+                <TooltipContent side="right">{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</TooltipContent>
+              )}
+            </Tooltip>
+
             {/* Collapse Toggle */}
             <Button
               variant="ghost"
@@ -386,6 +427,7 @@ export function AdminView({ onBack }: AdminViewProps) {
             {screen === 'audit' && <AuditLogViewer />}
             {screen === 'users' && <UsersManager />}
             {screen === 'config' && <ConfigManager />}
+            {screen === 'reservations' && <ReservationsManager />}
           </div>
         </main>
       </div>

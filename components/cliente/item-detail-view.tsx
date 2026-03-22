@@ -5,7 +5,7 @@ import { ChevronLeft, ShoppingBag, Minus, Plus, AlertCircle } from 'lucide-react
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { formatPrice, type MenuItem, type Extra, type SelectedModifier } from '@/lib/store'
+import { formatPrice, type MenuItem, type Extra, type SelectedModifier, ETIQUETAS_CONFIG } from '@/lib/store'
 
 interface ItemDetailViewProps {
   item: MenuItem
@@ -139,6 +139,18 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
             <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
               {item.descripcion}
             </p>
+          )}
+          {item.etiquetas && item.etiquetas.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {item.etiquetas.map(tag => {
+                const cfg = ETIQUETAS_CONFIG[tag]
+                return cfg ? (
+                  <span key={tag} className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
+                    {cfg.emoji} {cfg.label}
+                  </span>
+                ) : null
+              })}
+            </div>
           )}
         </div>
 
