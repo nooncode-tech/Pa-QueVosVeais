@@ -1,17 +1,18 @@
 'use client'
 
-import { ClipboardList, Bell } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { ClipboardList, Bell, Receipt } from 'lucide-react'
 import Image from 'next/image'
 
-type ClienteScreen = 'menu' | 'item' | 'cart' | 'status' | 'feedback'
+type ClienteScreen = 'menu' | 'item' | 'cart' | 'status' | 'bill' | 'feedback'
 
 interface ClienteBottomNavProps {
   activeScreen: ClienteScreen
   onMenuClick: () => void
   onStatusClick: () => void
+  onBillClick: () => void
   onCallWaiter: () => void
   hasActiveOrders: boolean
+  hasBill: boolean
   cartCount: number
   hasActiveWaiterCall?: boolean
 }
@@ -20,15 +21,17 @@ export function ClienteBottomNav({
   activeScreen,
   onMenuClick,
   onStatusClick,
+  onBillClick,
   onCallWaiter,
   hasActiveOrders,
+  hasBill,
   hasActiveWaiterCall = false,
 }: ClienteBottomNavProps) {
   const navItems = [
     {
       key: 'menu',
-      label: 'Menu',
-      icon: null as LucideIcon | null,
+      label: 'Menú',
+      icon: null,
       isLogo: true,
       onClick: onMenuClick,
       active: activeScreen === 'menu',
@@ -36,16 +39,25 @@ export function ClienteBottomNav({
     {
       key: 'status',
       label: 'Pedidos',
-      icon: ClipboardList as LucideIcon | null,
+      icon: ClipboardList,
       isLogo: false,
       onClick: onStatusClick,
       active: activeScreen === 'status',
       badge: hasActiveOrders,
     },
     {
+      key: 'bill',
+      label: 'Cuenta',
+      icon: Receipt,
+      isLogo: false,
+      onClick: onBillClick,
+      active: activeScreen === 'bill',
+      hidden: !hasBill,
+    },
+    {
       key: 'waiter',
       label: 'Mesero',
-      icon: Bell as LucideIcon | null,
+      icon: Bell,
       isLogo: false,
       onClick: onCallWaiter,
       active: false,
@@ -53,14 +65,15 @@ export function ClienteBottomNav({
     },
   ]
 
+  const visibleItems = navItems.filter(item => !item.hidden)
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50 max-w-md mx-auto">
       <div className="flex items-center justify-around py-2">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon
-          // El boton de mesero solo es naranja si hay una llamada activa
           const isWaiterActive = item.isWaiterCall && hasActiveWaiterCall
-          
+
           return (
             <button
               key={item.key}
@@ -75,7 +88,13 @@ export function ClienteBottomNav({
             >
               <div className="relative">
                 {item.isLogo ? (
-                  <Image src="/logo.png" alt="Menu" width={20} height={20} className={`h-5 w-5 object-contain ${item.active ? '' : 'opacity-50'}`} />
+                  <Image
+                    src="/logo.png"
+                    alt="Menú"
+                    width={20}
+                    height={20}
+                    className={`h-5 w-5 object-contain ${item.active ? '' : 'opacity-50'}`}
+                  />
                 ) : Icon ? (
                   <Icon className={`h-5 w-5 ${isWaiterActive ? 'animate-pulse' : ''}`} />
                 ) : null}

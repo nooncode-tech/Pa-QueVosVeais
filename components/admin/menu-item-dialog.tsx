@@ -72,13 +72,17 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
     setExtras(extras.filter(e => e.id !== extraId))
   }
   
+  const precioNum = parseFloat(precio)
+  const canSubmit = nombre.trim().length > 0 && !isNaN(precioNum) && precioNum >= 0 && !!categoria
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+    if (!canSubmit) return
+
     const data = {
-      nombre,
+      nombre: nombre.trim(),
       descripcion,
-      precio: parseFloat(precio) || 0,
+      precio: precioNum,
       categoria,
       cocina,
       imagen: imagen || undefined,
@@ -562,6 +566,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
             <Button
               type="submit"
               className="flex-1 bg-primary text-primary-foreground h-8 text-xs"
+              disabled={!canSubmit}
             >
               {item ? 'Guardar' : 'Crear'}
             </Button>

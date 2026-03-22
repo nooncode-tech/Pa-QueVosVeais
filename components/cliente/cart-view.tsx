@@ -12,13 +12,15 @@ interface CartViewProps {
 }
 
 export function CartView({ mesa, onBack, onOrderConfirmed }: CartViewProps) {
-  const { cart, updateCartItem, removeFromCart, createOrder } = useApp()
-  
+  const { cart, updateCartItem, removeFromCart, createOrder, config } = useApp()
+
   const subtotal = cart.reduce((sum, item) => {
     const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
     return sum + (item.menuItem.precio + extrasTotal) * item.cantidad
   }, 0)
-  
+  const iva = subtotal * (config.impuestoPorcentaje / 100)
+  const total = subtotal + iva
+
   const handleConfirm = () => {
     createOrder('mesa', mesa)
     onOrderConfirmed()
@@ -165,31 +167,28 @@ export function CartView({ mesa, onBack, onOrderConfirmed }: CartViewProps) {
       </main>
 
       {/* Bottom Summary */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border p-4 space-y-4 max-w-md mx-auto">
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm text-muted-foreground">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border p-4 space-y-3 max-w-md mx-auto">
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[13px] text-muted-foreground">
             <span>Subtotal</span>
             <span>{formatPrice(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-base font-semibold text-foreground">
+          <div className="flex justify-between text-[13px] text-muted-foreground">
+            <span>IVA ({config.impuestoPorcentaje}%)</span>
+            <span>{formatPrice(iva)}</span>
+          </div>
+          <div className="flex justify-between text-base font-semibold text-foreground pt-1.5 border-t border-border">
             <span>Total</span>
-            <span>{formatPrice(subtotal)}</span>
+            <span>{formatPrice(total)}</span>
           </div>
         </div>
-        
+
         <Button
           className="w-full bg-foreground hover:bg-foreground/90 text-background h-12 text-sm font-semibold rounded-xl"
           onClick={handleConfirm}
         >
-          Confirmar pedido
+          Confirmar pedido · {formatPrice(total)}
         </Button>
-        
-        <button
-          className="w-full text-sm text-muted-foreground py-2"
-          onClick={onBack}
-        >
-          Seguir agregando
-        </button>
       </div>
     </div>
   )

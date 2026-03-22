@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Search, ShoppingBag, ChevronLeft, Plus, SlidersHorizontal, AlertCircle } from 'lucide-react'
+import { Search, ShoppingBag, ChevronLeft, Plus, AlertCircle } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -115,16 +115,17 @@ export function MenuView({
 
           {/* Categories */}
           <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-foreground">Categorías</span>
-              <button 
+            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+              <button
                 onClick={() => setSelectedCategory(null)}
-                className="text-[11px] text-primary font-medium"
+                className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all whitespace-nowrap ${
+                  selectedCategory === null
+                    ? 'bg-foreground text-background'
+                    : 'bg-secondary text-foreground'
+                }`}
               >
-                Ver todo
+                Todo
               </button>
-            </div>
-            <div className="flex gap-2 overflow-x-auto scrollbar-none">
               {activeCategories.map((cat) => (
                 <button
                   key={cat.id}
@@ -140,22 +141,17 @@ export function MenuView({
               ))}
             </div>
           </div>
-          
+
           {/* Search */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Buscar"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-sm bg-secondary border-0 rounded-xl"
-              />
-            </div>
-            <button className="w-9 h-9 flex items-center justify-center bg-secondary rounded-xl">
-              <SlidersHorizontal className="h-4 w-4 text-foreground" />
-            </button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar platillo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 text-sm bg-secondary border-0 rounded-xl w-full"
+            />
           </div>
         </div>
       </header>
@@ -168,80 +164,76 @@ export function MenuView({
               <span>{getCategoryEmoji(category)}</span>
               {categories.find(c => c.id === category)?.nombre ?? category}
             </h2>
-            <div className="space-y-2">
+            <div className="space-y-0 divide-y divide-border">
               {items.map((item) => {
                 const availability = getItemAvailability(item)
                 const isAvailable = availability.canPrepare
                 const showLowStock = isAvailable && availability.maxPortions <= 5 && availability.maxPortions > 0
-                
+
                 return (
                   <div
                     key={item.id}
-                    className={`flex items-center gap-3 py-2 ${
-                      isAvailable && canOrder ? 'cursor-pointer' : 'opacity-60'
+                    className={`flex items-center gap-3 py-3 ${
+                      isAvailable && canOrder ? 'cursor-pointer active:bg-secondary/50' : 'opacity-50'
                     }`}
                     onClick={() => isAvailable && canOrder && onSelectItem(item)}
                   >
                     {/* Image */}
-                    <div className={`w-16 h-16 bg-secondary rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center relative ${
+                    <div className={`w-20 h-20 bg-secondary rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center relative ${
                       !isAvailable ? 'grayscale' : ''
                     }`}>
                       {item.imagen ? (
-                        <Image 
-                          src={item.imagen} 
+                        <Image
+                          src={item.imagen}
                           alt={item.nombre}
-                          width={64}
-                          height={64}
+                          width={80}
+                          height={80}
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-2xl">{getCategoryEmoji(item.categoria)}</span>
+                        <span className="text-3xl">{getCategoryEmoji(item.categoria)}</span>
                       )}
                       {!isAvailable && (
                         <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                          <span className="text-[9px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">
-                            AGOTADO
-                          </span>
+                          <span className="text-[9px] font-bold text-destructive">AGOTADO</span>
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <h3 className="font-medium text-[13px] text-foreground leading-tight">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-semibold text-sm text-foreground leading-tight">
                           {item.nombre}
                         </h3>
                         {showLowStock && (
-                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
+                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0">
                             Últimos {availability.maxPortions}
                           </span>
                         )}
                       </div>
                       {item.descripcion && (
-                        <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
+                        <p className="text-[12px] text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
                           {item.descripcion}
                         </p>
                       )}
-                      <p className={`text-[13px] font-semibold mt-1 ${
-                        isAvailable ? 'text-foreground' : 'text-muted-foreground'
-                      }`}>
-                        {formatPrice(item.precio)}
-                      </p>
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-sm font-bold text-foreground">
+                          {formatPrice(item.precio)}
+                        </p>
+                        {isAvailable && canOrder && (
+                          <button
+                            className="w-8 h-8 flex items-center justify-center bg-foreground text-background rounded-full active:scale-95 transition-transform"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onSelectItem(item)
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-
-                    {/* Add button */}
-                    {isAvailable && canOrder && (
-                      <button 
-                        className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSelectItem(item)
-                        }}
-                      >
-                        <Plus className="h-5 w-5" />
-                      </button>
-                    )}
                   </div>
                 )
               })}
@@ -256,16 +248,19 @@ export function MenuView({
         )}
       </main>
 
-      {/* Bottom Status Bar */}
-      {hasActiveOrders && (
-        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-border p-3 max-w-md mx-auto">
-          <Button
-            variant="outline"
-            className="w-full gap-2 bg-transparent h-10 text-sm rounded-xl"
-            onClick={onViewStatus}
+      {/* Floating cart button when items in cart */}
+      {cartItemCount > 0 && canOrder && (
+        <div className="fixed bottom-[4.5rem] left-4 right-4 max-w-md mx-auto z-40">
+          <button
+            onClick={onGoToCart}
+            className="w-full bg-foreground text-background h-12 rounded-2xl flex items-center justify-between px-5 shadow-lg text-sm font-semibold active:scale-[0.98] transition-transform"
           >
-            Ver estado de mis pedidos
-          </Button>
+            <span className="bg-white/20 text-background text-xs font-bold px-2 py-0.5 rounded-full">
+              {cartItemCount}
+            </span>
+            <span>Ver pedido</span>
+            <ShoppingBag className="h-4 w-4" />
+          </button>
         </div>
       )}
     </div>

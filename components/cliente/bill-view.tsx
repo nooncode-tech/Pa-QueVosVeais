@@ -182,7 +182,7 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
 
       {/* Bottom Summary */}
       {session.orders.length > 0 && (
-        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-border p-4 max-w-md mx-auto">
+        <div className="fixed bottom-[4.5rem] left-0 right-0 bg-white border-t border-border p-4 max-w-md mx-auto">
           <div className="space-y-1.5 mb-4">
             <div className="flex justify-between text-[13px] text-muted-foreground">
               <span>Subtotal</span>

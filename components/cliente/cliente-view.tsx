@@ -7,6 +7,7 @@ import { MenuView } from './menu-view'
 import { CartView } from './cart-view'
 import { OrderStatusView } from './order-status-view'
 import { ItemDetailView } from './item-detail-view'
+import { BillView } from './bill-view'
 import { ClienteBottomNav } from './cliente-bottom-nav'
 import { WaiterCallDialog } from './waiter-call-dialog'
 import { RewardsSheet } from './rewards-sheet'
@@ -21,7 +22,7 @@ const GOOGLE_REVIEW_URL = 'https://www.google.com/maps/place/Pa+que+vos+Veais+RE
 /* =======================
    TYPES
 ======================= */
-type ClienteScreen = 'menu' | 'item' | 'cart' | 'status' | 'feedback'
+type ClienteScreen = 'menu' | 'item' | 'cart' | 'status' | 'bill' | 'feedback'
 
 interface ClienteViewProps {
   mesa: number
@@ -144,7 +145,7 @@ export function ClienteView({ mesa, onBack }: ClienteViewProps) {
     c => c.mesa === mesa && !c.atendido
   )
 
-  const showBottomNav = ['menu', 'status'].includes(screen)
+  const showBottomNav = ['menu', 'status', 'bill'].includes(screen)
 
   /* =======================
      NAV HANDLERS
@@ -175,6 +176,7 @@ export function ClienteView({ mesa, onBack }: ClienteViewProps) {
             item={selectedItem}
             onBack={goMenu}
             onAddToCart={goMenu}
+            onGoToCart={() => setScreen('cart')}
             cartItemCount={cart.length}
             canOrder={canOrder}
           />
@@ -197,6 +199,16 @@ export function ClienteView({ mesa, onBack }: ClienteViewProps) {
             onBack={goMenu}
           />
         )
+
+      case 'bill':
+        return sessionId ? (
+          <BillView
+            sessionId={sessionId}
+            mesa={mesa}
+            onBack={goMenu}
+            onShowRewards={() => setShowRewards(true)}
+          />
+        ) : null
 
       default:
         return (
@@ -228,8 +240,10 @@ export function ClienteView({ mesa, onBack }: ClienteViewProps) {
           activeScreen={screen}
           onMenuClick={() => setScreen('menu')}
           onStatusClick={() => setScreen('status')}
+          onBillClick={() => setScreen('bill')}
           onCallWaiter={() => setShowWaiterCall(true)}
           hasActiveOrders={tableOrders.length > 0}
+          hasBill={!!session && session.orders.length > 0}
           cartCount={cart.length}
           hasActiveWaiterCall={hasActiveWaiterCall}
         />

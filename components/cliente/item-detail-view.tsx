@@ -11,11 +11,12 @@ interface ItemDetailViewProps {
   item: MenuItem
   onBack: () => void
   onAddToCart: () => void
+  onGoToCart?: () => void
   cartItemCount?: number
   canOrder?: boolean
 }
 
-export function ItemDetailView({ item, onBack, onAddToCart, cartItemCount = 0, canOrder = true }: ItemDetailViewProps) {
+export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItemCount = 0, canOrder = true }: ItemDetailViewProps) {
   const { addToCart, categories } = useApp()
   const [cantidad, setCantidad] = useState(1)
   const [notas, setNotas] = useState('')
@@ -69,7 +70,10 @@ export function ItemDetailView({ item, onBack, onAddToCart, cartItemCount = 0, c
             <ChevronLeft className="h-5 w-5 text-foreground" />
           </button>
           
-          <button className="w-9 h-9 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm relative">
+          <button
+            onClick={onGoToCart}
+            className="w-9 h-9 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm relative"
+          >
             <ShoppingBag className="h-5 w-5 text-foreground" />
             {cartItemCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">

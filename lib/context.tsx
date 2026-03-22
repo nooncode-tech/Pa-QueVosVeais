@@ -962,6 +962,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
         }))
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const log: AuditLog = {
+          id: row.id as string,
+          userId: row.user_id as string,
+          accion: row.accion as string,
+          detalles: row.detalles as string,
+          entidad: row.entidad as string,
+          entidadId: row.entidad_id as string,
+          createdAt: new Date(row.created_at as string),
+        }
+        setState(prev => ({
+          ...prev,
+          auditLogs: prev.auditLogs.some(a => a.id === log.id)
+            ? prev.auditLogs
+            : [log, ...prev.auditLogs].slice(0, 500),
+        }))
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'inventory_adjustments' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const adj: InventoryAdjustment = {
+          id: row.id as string,
+          ingredientId: row.ingredient_id as string,
+          tipo: row.tipo as InventoryAdjustment['tipo'],
+          cantidad: Number(row.cantidad),
+          motivo: row.motivo as string,
+          userId: (row.user_id as string) ?? 'system',
+          createdAt: new Date(row.created_at as string),
+        }
+        setState(prev => ({
+          ...prev,
+          inventoryAdjustments: prev.inventoryAdjustments.some(a => a.id === adj.id)
+            ? prev.inventoryAdjustments
+            : [adj, ...prev.inventoryAdjustments],
+        }))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
