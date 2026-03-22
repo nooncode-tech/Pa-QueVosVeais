@@ -10,7 +10,15 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Pa' Que Vos Veáis - Sistema de Pedidos",
   description: 'Sistema de gestión de pedidos y cocina para restaurante',
-  generator: 'v0.app',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: "Pa' Que Vos Veáis",
+  },
+  icons: {
+    apple: '/logo.png',
+  },
 }
 
 export const viewport: Viewport = {

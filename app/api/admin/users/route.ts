@@ -1,5 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { checkRateLimit } from '@/lib/rate-limit'
+
+// 20 requests per minute per IP on admin user management
+const RATE_LIMIT = { limit: 20, windowMs: 60_000 }
+
+function getRateLimitKey(req: NextRequest): string {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? req.headers.get('x-real-ip')
+    ?? 'unknown'
+  return `admin-users:${ip}`
+}
+
+function applyRateLimit(req: NextRequest): NextResponse | null {
+  const result = checkRateLimit(getRateLimitKey(req), RATE_LIMIT)
+  if (!result.allowed) {
+    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta en un momento.' }, {
+      status: 429,
+      headers: { 'Retry-After': String(Math.ceil((result.resetAt - Date.now()) / 1000)) },
+    })
+  }
+  return null
+}
 
 async function requireAdmin(req: NextRequest): Promise<{ error: NextResponse } | { userId: string }> {
   const authHeader = req.headers.get('authorization')
@@ -20,6 +42,8 @@ async function requireAdmin(req: NextRequest): Promise<{ error: NextResponse } |
 
 // POST /api/admin/users — create a new user in Auth + profiles
 export async function POST(req: NextRequest) {
+  const rl = applyRateLimit(req)
+  if (rl) return rl
   const auth = await requireAdmin(req)
   if ('error' in auth) return auth.error
 
@@ -66,6 +90,8 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/admin/users — update nombre, role or activo
 export async function PUT(req: NextRequest) {
+  const rl = applyRateLimit(req)
+  if (rl) return rl
   const auth = await requireAdmin(req)
   if ('error' in auth) return auth.error
 
@@ -119,6 +145,8 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/admin/users — delete auth user + profile
 export async function DELETE(req: NextRequest) {
+  const rl = applyRateLimit(req)
+  if (rl) return rl
   const auth = await requireAdmin(req)
   if ('error' in auth) return auth.error
 
