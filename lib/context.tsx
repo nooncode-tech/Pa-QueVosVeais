@@ -89,7 +89,7 @@ interface AppContextType extends AppState {
   logout: () => Promise<void>
   
   // Cart actions
-  addToCart: (item: MenuItem, cantidad: number, notas?: string, extras?: MenuItem['extras']) => void
+  addToCart: (item: MenuItem, cantidad: number, notas?: string, extras?: MenuItem['extras'], modificadores?: import('./store').SelectedModifier[]) => void
   removeFromCart: (itemId: string) => void
   updateCartItem: (itemId: string, cantidad: number) => void
   clearCart: () => void
@@ -214,6 +214,7 @@ function mapMenuItem(row: Record<string, unknown>): MenuItem {
     orden: (row.orden as number) ?? 0,
     receta: (row.receta as MenuItem['receta']) ?? [],
     extras: (row.extras as MenuItem['extras']) ?? [],
+    gruposModificadores: (row.grupos_modificadores as MenuItem['gruposModificadores']) ?? [],
   }
 }
 
@@ -1039,12 +1040,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
   
   // ============ CART ACTIONS ============
-  const addToCart = useCallback((item: MenuItem, cantidad: number, notas?: string, extras?: MenuItem['extras']) => {
+  const addToCart = useCallback((item: MenuItem, cantidad: number, notas?: string, extras?: MenuItem['extras'], modificadores?: import('./store').SelectedModifier[]) => {
     setState(prev => {
       const existingIndex = prev.cart.findIndex(
-        ci => ci.menuItem.id === item.id && ci.notas === notas && JSON.stringify(ci.extras) === JSON.stringify(extras)
+        ci => ci.menuItem.id === item.id
+          && ci.notas === notas
+          && JSON.stringify(ci.extras) === JSON.stringify(extras)
+          && JSON.stringify(ci.modificadores) === JSON.stringify(modificadores)
       )
-      
+
       if (existingIndex >= 0) {
         const newCart = [...prev.cart]
         newCart[existingIndex] = {
@@ -1053,7 +1057,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         return { ...prev, cart: newCart }
       }
-      
+
       return {
         ...prev,
         cart: [
@@ -1064,6 +1068,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             cantidad,
             notas,
             extras,
+            modificadores,
           },
         ],
       }
@@ -1917,6 +1922,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     if (updates.cocina !== undefined) payload.cocina = updates.cocina
     if (updates.receta !== undefined) payload.receta = updates.receta
     if (updates.extras !== undefined) payload.extras = updates.extras
+    if (updates.gruposModificadores !== undefined) payload.grupos_modificadores = updates.gruposModificadores
     if (imageUrl !== undefined) payload.image = imageUrl
 
     const { error } = await supabase
@@ -1965,6 +1971,7 @@ const addMenuItem = useCallback(
           cocina: item.cocina ?? 'cocina_a',
           receta: item.receta ?? [],
           extras: item.extras ?? [],
+          grupos_modificadores: item.gruposModificadores ?? [],
         }
       ])
       .select()

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient } from '@/lib/store'
+import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient, type ModifierGroup, type ModifierOption } from '@/lib/store'
 
 interface MenuItemDialogProps {
   item: MenuItem | null
@@ -28,6 +28,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [extras, setExtras] = useState<Extra[]>(item?.extras || [])
   const [receta, setReceta] = useState<RecipeIngredient[]>(item?.receta || [])
+  const [gruposModificadores, setGruposModificadores] = useState<ModifierGroup[]>(item?.gruposModificadores || [])
   
   // For new extra
   const [newExtraName, setNewExtraName] = useState('')
@@ -88,6 +89,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
       imagen: imagen || undefined,
       extras: extras.length > 0 ? extras : undefined,
       receta: receta.length > 0 ? receta : undefined,
+      gruposModificadores: gruposModificadores.length > 0 ? gruposModificadores : undefined,
       disponible: item?.disponible ?? true,
     }
     
@@ -406,6 +408,85 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
             </div>
           </div>
           
+          {/* Modifier Groups */}
+          <div className="border-t border-border pt-3">
+            <Label className="text-xs">Grupos de modificadores</Label>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Preguntas obligatorias u opcionales al ordenar (ej: "Término", "¿Con salsa?")
+            </p>
+
+            {gruposModificadores.map((grupo, gi) => (
+              <div key={grupo.id} className="bg-secondary/40 rounded-lg p-2 mb-2 space-y-1.5">
+                {/* Group header */}
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={grupo.nombre}
+                    onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, nombre: e.target.value } : g))}
+                    placeholder="Ej: Término de cocción"
+                    className="h-6 text-xs flex-1"
+                  />
+                  <select
+                    value={grupo.tipo}
+                    onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, tipo: e.target.value as ModifierGroup['tipo'] } : g))}
+                    className="h-6 text-[10px] border border-border rounded bg-background px-1"
+                  >
+                    <option value="unico">1 opción</option>
+                    <option value="multiple">Varias</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, requerido: !g.requerido } : g))}
+                    className={`h-6 px-1.5 text-[10px] rounded border transition-colors ${grupo.requerido ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground'}`}
+                  >
+                    {grupo.requerido ? 'Req.' : 'Opc.'}
+                  </button>
+                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => setGruposModificadores(prev => prev.filter((_, i) => i !== gi))}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                {/* Options */}
+                <div className="space-y-1 pl-1">
+                  {grupo.opciones.map((op, oi) => (
+                    <div key={op.id} className="flex items-center gap-1">
+                      <Input
+                        value={op.nombre}
+                        onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: g.opciones.map((o, j) => j === oi ? { ...o, nombre: e.target.value } : o) } : g))}
+                        placeholder="Opción"
+                        className="h-5 text-[10px] flex-1"
+                      />
+                      <Input
+                        type="number" step="0.01" min="0"
+                        value={op.precioExtra}
+                        onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: g.opciones.map((o, j) => j === oi ? { ...o, precioExtra: parseFloat(e.target.value) || 0 } : o) } : g))}
+                        placeholder="+$"
+                        className="h-5 text-[10px] w-14"
+                      />
+                      <Button type="button" variant="ghost" size="icon" className="h-4 w-4 text-destructive" onClick={() => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: g.opciones.filter((_, j) => j !== oi) } : g))}>
+                        <Trash2 className="h-2.5 w-2.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: [...g.opciones, { id: `opt-${Date.now()}`, nombre: '', precioExtra: 0 }] } : g))}
+                    className="text-[10px] text-primary flex items-center gap-0.5 mt-0.5"
+                  >
+                    <Plus className="h-3 w-3" /> Agregar opción
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setGruposModificadores(prev => [...prev, { id: `grp-${Date.now()}`, nombre: '', requerido: true, tipo: 'unico', opciones: [] }])}
+              className="text-xs text-primary flex items-center gap-1"
+            >
+              <Plus className="h-3 w-3" /> Agregar grupo de modificadores
+            </button>
+          </div>
+
           {/* Recipe / Ingredients */}
           <div className="border-t border-border pt-3">
             <Label className="text-xs">Ingredientes (receta)</Label>

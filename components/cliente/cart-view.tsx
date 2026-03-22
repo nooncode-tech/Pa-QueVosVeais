@@ -112,7 +112,18 @@ export function CartView({ mesa, onBack, onOrderConfirmed }: CartViewProps) {
                           + {item.extras.map(e => e.nombre).join(', ')}
                         </p>
                       )}
-                      
+
+                      {/* Modifiers */}
+                      {item.modificadores && item.modificadores.length > 0 && (
+                        <div className="mt-0.5">
+                          {item.modificadores.map(mg => (
+                            <p key={mg.grupoId} className="text-[11px] text-primary">
+                              {mg.grupoNombre}: {mg.opciones.map(o => o.nombre).join(', ')}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Notes */}
                       {item.notas && (
                         <p className="text-[11px] text-muted-foreground mt-0.5 italic">

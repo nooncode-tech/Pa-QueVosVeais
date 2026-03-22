@@ -3,13 +3,15 @@
 import React from "react"
 
 import { useState } from 'react'
-import { X, Receipt, CreditCard, Banknote, Percent, Check, Printer, Smartphone } from 'lucide-react'
+import { X, Receipt, CreditCard, Banknote, Percent, Check, Printer, Smartphone, Users } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatPrice, type PaymentMethod } from '@/lib/store'
+import { SplitBillDialog } from './split-bill-dialog'
+import { StripePaymentForm } from './stripe-payment-form'
 
 interface BillDialogProps {
   sessionId: string
@@ -40,6 +42,7 @@ const quickDiscounts = [
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [paying, setPaying] = useState(false)
+  const [showSplit, setShowSplit] = useState(false)
   
   if (!session) {
     return null
@@ -316,7 +319,16 @@ const quickDiscounts = [
           </div>
           
           {/* Actions */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-2 flex-wrap">
+            <Button
+              variant="outline"
+              className="flex-1 h-10 text-xs gap-1.5 bg-transparent min-w-[100px]"
+              onClick={() => setShowSplit(true)}
+              disabled={!session.orders?.length}
+            >
+              <Users className="h-4 w-4" />
+              Dividir
+            </Button>
             <Button
               variant="outline"
               className="flex-1 h-10 bg-transparent"
@@ -390,8 +402,32 @@ const quickDiscounts = [
           </div>
         </div>
         
+        {/* Split Bill Dialog */}
+        {showSplit && (
+          <SplitBillDialog sessionId={sessionId} onClose={() => setShowSplit(false)} />
+        )}
+
         {/* Confirmation Dialog */}
-        {showConfirm && (
+        {showConfirm && selectedMethod === 'tarjeta' && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-4 rounded-xl">
+            <Card className="w-full max-w-sm">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-foreground">Pago con tarjeta</h3>
+                  <span className="text-sm font-bold text-foreground">{formatPrice(calculatedTotal)}</span>
+                </div>
+                <StripePaymentForm
+                  amount={calculatedTotal}
+                  description={`Mesa ${session.mesa}`}
+                  onSuccess={handleConfirmPayment}
+                  onCancel={() => setShowConfirm(false)}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showConfirm && selectedMethod !== 'tarjeta' && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-4 rounded-xl">
             <Card className="w-full max-w-sm">
               <CardContent className="p-4 text-center">
@@ -402,24 +438,21 @@ const quickDiscounts = [
                   <br />
                   Método: <span className="capitalize">{selectedMethod}</span>
                 </p>
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1 bg-transparent"
-                      onClick={() => setShowConfirm(false)}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
-                      onClick={handleConfirmPayment}
-                      disabled={paying}
-                    >
-                      Confirmar
-                    </Button>
-                  </div>
-
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setShowConfirm(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+                    onClick={handleConfirmPayment}
+                    disabled={paying}
+                  >
+                    Confirmar
+                  </Button>
                 </div>
               </CardContent>
             </Card>

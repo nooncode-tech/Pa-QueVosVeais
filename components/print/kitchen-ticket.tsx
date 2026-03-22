@@ -62,6 +62,15 @@ export const KitchenTicket = forwardRef<HTMLDivElement, KitchenTicketProps>(
                   {item.extras && item.extras.length > 0 && (
                     <p className="text-xs pl-2">+ {item.extras.map(e => e.nombre).join(', ')}</p>
                   )}
+                  {item.modificadores && item.modificadores.length > 0 && (
+                    <div className="pl-2">
+                      {item.modificadores.map(mg => (
+                        <p key={mg.grupoId} className="text-xs font-bold uppercase">
+                          {mg.grupoNombre}: {mg.opciones.map(o => o.nombre).join(' / ')}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   {item.notas && (
                     <p className="text-xs pl-2 font-bold">*** {item.notas} ***</p>
                   )}

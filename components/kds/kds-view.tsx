@@ -689,6 +689,15 @@ function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onCo
                     + {item.extras.map(e => e.nombre).join(', ')}
                   </p>
                 )}
+                {item.modificadores && item.modificadores.length > 0 && (
+                  <div className={cn(large ? "text-sm" : "text-[9px]")}>
+                    {item.modificadores.map(mg => (
+                      <p key={mg.grupoId} className="text-orange-600 font-medium">
+                        {mg.grupoNombre}: {mg.opciones.map(o => o.nombre).join(', ')}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             </li>
           ))}

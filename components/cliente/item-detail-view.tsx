@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, ShoppingBag, Minus, Plus } from 'lucide-react'
+import { ChevronLeft, ShoppingBag, Minus, Plus, AlertCircle } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { formatPrice, type MenuItem, type Extra } from '@/lib/store'
+import { formatPrice, type MenuItem, type Extra, type SelectedModifier } from '@/lib/store'
 
 interface ItemDetailViewProps {
   item: MenuItem
@@ -21,33 +21,79 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
   const [cantidad, setCantidad] = useState(1)
   const [notas, setNotas] = useState('')
   const [selectedExtras, setSelectedExtras] = useState<Extra[]>([])
-  
+  // Map grupoId -> selected option ids
+  const [selectedMods, setSelectedMods] = useState<Record<string, string[]>>({})
+
+  const grupos = item.gruposModificadores ?? []
+
   const extrasTotal = selectedExtras.reduce((sum, extra) => sum + extra.precio, 0)
-  const total = (item.precio + extrasTotal) * cantidad
-  
+  const modTotal = grupos.reduce((sum, grupo) => {
+    const selectedIds = selectedMods[grupo.id] ?? []
+    return sum + grupo.opciones
+      .filter(o => selectedIds.includes(o.id))
+      .reduce((s, o) => s + o.precioExtra, 0)
+  }, 0)
+  const total = (item.precio + extrasTotal + modTotal) * cantidad
+
+  // Validate all required groups have at least one selection
+  const requiredUnmet = grupos.filter(g => g.requerido && !(selectedMods[g.id]?.length))
+
   const handleToggleExtra = (extra: Extra) => {
     setSelectedExtras(prev => {
       const exists = prev.find(e => e.id === extra.id)
-      if (exists) {
-        return prev.filter(e => e.id !== extra.id)
-      }
-      return [...prev, extra]
+      return exists ? prev.filter(e => e.id !== extra.id) : [...prev, extra]
     })
   }
-  
+
+  const handleSelectMod = (grupoId: string, optionId: string, tipo: 'unico' | 'multiple') => {
+    setSelectedMods(prev => {
+      if (tipo === 'unico') {
+        // Toggle off if same, otherwise replace
+        const current = prev[grupoId] ?? []
+        return { ...prev, [grupoId]: current.includes(optionId) ? [] : [optionId] }
+      } else {
+        const current = prev[grupoId] ?? []
+        return {
+          ...prev,
+          [grupoId]: current.includes(optionId)
+            ? current.filter(id => id !== optionId)
+            : [...current, optionId],
+        }
+      }
+    })
+  }
+
   const handleAddToCart = () => {
-    addToCart(item, cantidad, notas || undefined, selectedExtras.length > 0 ? selectedExtras : undefined)
+    if (requiredUnmet.length > 0) return
+
+    const modificadores: SelectedModifier[] = grupos
+      .map(grupo => {
+        const selectedIds = selectedMods[grupo.id] ?? []
+        const opciones = grupo.opciones.filter(o => selectedIds.includes(o.id))
+        return opciones.length > 0
+          ? { grupoId: grupo.id, grupoNombre: grupo.nombre, opciones }
+          : null
+      })
+      .filter(Boolean) as SelectedModifier[]
+
+    addToCart(
+      item,
+      cantidad,
+      notas || undefined,
+      selectedExtras.length > 0 ? selectedExtras : undefined,
+      modificadores.length > 0 ? modificadores : undefined,
+    )
     onAddToCart()
   }
-  
+
   return (
     <div className="min-h-screen bg-white flex flex-col max-w-md mx-auto">
       {/* Hero Image with overlaid header */}
       <div className="relative">
         <div className="w-full aspect-[4/3] bg-secondary flex items-center justify-center rounded-b-[32px] overflow-hidden">
           {item.imagen ? (
-            <img 
-              src={item.imagen} 
+            <img
+              src={item.imagen}
               alt={item.nombre}
               className="w-full h-full object-cover"
             />
@@ -60,16 +106,16 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
             </span>
           )}
         </div>
-        
+
         {/* Overlaid header */}
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 pt-3">
-          <button 
+          <button
             onClick={onBack}
             className="w-9 h-9 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm"
           >
             <ChevronLeft className="h-5 w-5 text-foreground" />
           </button>
-          
+
           <button
             onClick={onGoToCart}
             className="w-9 h-9 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm relative"
@@ -96,6 +142,59 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
           )}
         </div>
 
+        {/* Modifier Groups */}
+        {grupos.length > 0 && grupos.map(grupo => {
+          const selected = selectedMods[grupo.id] ?? []
+          const isUnmet = grupo.requerido && selected.length === 0
+          return (
+            <div key={grupo.id} className="mb-5">
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-sm font-semibold text-foreground">{grupo.nombre}</h2>
+                {grupo.requerido
+                  ? <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isUnmet ? 'bg-destructive/10 text-destructive' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {isUnmet ? 'Requerido' : '✓'}
+                    </span>
+                  : <span className="text-[10px] text-muted-foreground">Opcional</span>
+                }
+              </div>
+              <div className="space-y-1.5">
+                {grupo.opciones.map(opcion => {
+                  const isChecked = selected.includes(opcion.id)
+                  return (
+                    <button
+                      key={opcion.id}
+                      onClick={() => handleSelectMod(grupo.id, opcion.id, grupo.tipo)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
+                        isChecked
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-white'
+                      }`}
+                    >
+                      <span className={`text-[13px] ${isChecked ? 'font-medium text-foreground' : 'text-foreground'}`}>
+                        {opcion.nombre}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {opcion.precioExtra > 0 && (
+                          <span className="text-[11px] text-muted-foreground">+{formatPrice(opcion.precioExtra)}</span>
+                        )}
+                        <div className={`w-5 h-5 ${grupo.tipo === 'unico' ? 'rounded-full' : 'rounded'} border-2 flex items-center justify-center transition-all ${
+                          isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30'
+                        }`}>
+                          {isChecked && (
+                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+
         {/* Extras */}
         {item.extras && item.extras.length > 0 && (
           <div className="mb-5">
@@ -118,8 +217,8 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
                       </p>
                     </div>
                     <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
-                      isSelected 
-                        ? 'bg-primary border-primary' 
+                      isSelected
+                        ? 'bg-primary border-primary'
                         : 'border-muted-foreground/30'
                     }`}>
                       {isSelected && (
@@ -134,7 +233,7 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
             </div>
           </div>
         )}
-        
+
         {/* Notes */}
         <div className="mb-5">
           <h2 className="text-sm font-semibold text-foreground mb-2">Notas especiales</h2>
@@ -147,7 +246,7 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
             disabled={!canOrder}
           />
         </div>
-        
+
         {/* Quantity */}
         <div>
           <h2 className="text-sm font-semibold text-foreground mb-2">Cantidad</h2>
@@ -175,10 +274,16 @@ export function ItemDetailView({ item, onBack, onAddToCart, onGoToCart, cartItem
 
       {/* Add to Cart Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border p-4 max-w-md mx-auto">
+        {requiredUnmet.length > 0 && (
+          <p className="flex items-center gap-1.5 text-[11px] text-destructive mb-2">
+            <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+            Selecciona: {requiredUnmet.map(g => g.nombre).join(', ')}
+          </p>
+        )}
         <Button
           className="w-full bg-foreground hover:bg-foreground/90 text-background h-12 text-sm font-semibold rounded-xl disabled:opacity-50"
           onClick={handleAddToCart}
-          disabled={!canOrder}
+          disabled={!canOrder || requiredUnmet.length > 0}
         >
           {canOrder ? `Agregar al carrito - ${formatPrice(total)}` : 'No puedes agregar más platillos'}
         </Button>

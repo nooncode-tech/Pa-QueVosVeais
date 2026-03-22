@@ -15,6 +15,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  LineChart,
+  Line,
 } from 'recharts'
 
 type DateRange = 'today' | 'week' | 'month'
@@ -62,6 +64,8 @@ export function ReportsManager() {
   const { orders, tableSessions } = useApp()
   const [range, setRange] = useState<DateRange>('today')
   const [historicalData, setHistoricalData] = useState<HistoricalDay[]>([])
+  const [peakHoursData, setPeakHoursData] = useState<{ hora: string; pedidos: number }[]>([])
+  const [prevRevenue, setPrevRevenue] = useState<number | null>(null)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   const rangeStart = useMemo(() => getRangeStart(range), [range])
@@ -105,6 +109,41 @@ export function ReportsManager() {
       }
 
       setHistoricalData(Object.entries(byDay).map(([day, v]) => ({ day, ...v })))
+
+      // Peak hours: count orders by hour
+      const byHour: Record<number, number> = {}
+      for (const row of data as OrderRow[]) {
+        const h = new Date(row.created_at).getHours()
+        byHour[h] = (byHour[h] ?? 0) + 1
+      }
+      const hoursArr = Array.from({ length: 24 }, (_, h) => ({
+        hora: `${String(h).padStart(2, '0')}h`,
+        pedidos: byHour[h] ?? 0,
+      })).filter(h => h.pedidos > 0)
+      setPeakHoursData(hoursArr)
+
+      // Previous period for comparison
+      const prevEnd = new Date(since)
+      const prevStart = new Date(since)
+      const periodMs = Date.now() - since.getTime()
+      prevStart.setTime(since.getTime() - periodMs)
+
+      const { data: prevData } = await supabase
+        .from('orders')
+        .select('id, items')
+        .eq('status', 'entregado')
+        .gte('created_at', prevStart.toISOString())
+        .lt('created_at', prevEnd.toISOString())
+
+      if (prevData) {
+        const prevRev = (prevData as OrderRow[]).reduce((sum, row) =>
+          sum + (row.items ?? []).reduce((s, item) => {
+            const extrasTotal = (item.extras ?? []).reduce((e, ex) => e + ex.precio, 0)
+            return s + (item.menuItem.precio + extrasTotal) * item.cantidad
+          }, 0), 0)
+        setPrevRevenue(prevRev)
+      }
+
       setLoadingHistory(false)
     }
 
@@ -212,10 +251,19 @@ export function ReportsManager() {
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-primary" />
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-lg font-bold text-primary">{formatPrice(totalRevenue)}</p>
                 <p className="text-[9px] text-muted-foreground">Ventas {RANGE_LABELS[range].toLowerCase()}</p>
               </div>
+              {prevRevenue !== null && prevRevenue > 0 && (() => {
+                const pct = ((totalRevenue - prevRevenue) / prevRevenue) * 100
+                const up = pct >= 0
+                return (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${up ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                    {up ? '↑' : '↓'}{Math.abs(pct).toFixed(0)}%
+                  </span>
+                )
+              })()}
             </div>
           </CardContent>
         </Card>
@@ -277,6 +325,28 @@ export function ReportsManager() {
                   formatter={(value: number) => [formatPrice(value), 'Ventas']}
                 />
                 <Bar dataKey="ventas" fill={chartColor} radius={[3, 3, 0, 0]} maxBarSize={32} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Peak Hours Chart */}
+      {peakHoursData.length > 0 && (
+        <Card className="mb-3">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-xs flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              Horas pico
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <ResponsiveContainer width="100%" height={100}>
+              <BarChart data={peakHoursData} margin={{ top: 4, right: 4, bottom: 0, left: -28 }}>
+                <XAxis dataKey="hora" tick={{ fontSize: 8 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 8 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 10, borderRadius: 6 }} formatter={(v: number) => [v, 'Pedidos']} />
+                <Bar dataKey="pedidos" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

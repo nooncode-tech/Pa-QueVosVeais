@@ -62,6 +62,26 @@ export interface Extra {
   receta?: RecipeIngredient[]
 }
 
+export interface ModifierOption {
+  id: string
+  nombre: string       // "Bien cocido", "Salsa verde", etc.
+  precioExtra: number  // 0 for most options
+}
+
+export interface ModifierGroup {
+  id: string
+  nombre: string             // "Término de cocción", "¿Con qué salsa?"
+  requerido: boolean
+  tipo: 'unico' | 'multiple' // radio vs checkbox
+  opciones: ModifierOption[]
+}
+
+export interface SelectedModifier {
+  grupoId: string
+  grupoNombre: string
+  opciones: Array<{ id: string; nombre: string; precioExtra: number }>
+}
+
 export interface MenuItem {
   id: string
   nombre: string
@@ -73,6 +93,7 @@ export interface MenuItem {
   disponible: boolean
   extras?: Extra[]
   receta?: RecipeIngredient[]
+  gruposModificadores?: ModifierGroup[]
   orden?: number
   horarioDisponible?: { inicio: string; fin: string }
 }
@@ -84,6 +105,7 @@ export interface OrderItem {
   cantidad: number
   notas?: string
   extras?: Extra[]
+  modificadores?: SelectedModifier[]
   cocinaAStatus?: KitchenStatus
   cocinaBStatus?: KitchenStatus
 }
@@ -726,7 +748,10 @@ export function getPaymentMethodLabel(method: PaymentMethod): string {
 export function calculateOrderTotal(items: OrderItem[]): number {
   return items.reduce((sum, item) => {
     const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
-    return sum + (item.menuItem.precio + extrasTotal) * item.cantidad
+    const modTotal = item.modificadores?.reduce(
+      (m, mg) => m + mg.opciones.reduce((o, op) => o + op.precioExtra, 0), 0
+    ) || 0
+    return sum + (item.menuItem.precio + extrasTotal + modTotal) * item.cantidad
   }, 0)
 }
 
