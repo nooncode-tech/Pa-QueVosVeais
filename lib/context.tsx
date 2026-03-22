@@ -49,11 +49,12 @@ import {
 } from './store'
 
 import { playNewOrderSound, playWaiterCallSound } from './sounds'
+import { logger } from './logger'
 
 async function uploadMenuImage(file: File): Promise<string | null> {
   const fileName = `${Date.now()}-${file.name}`
   const { error } = await supabase.storage.from('menu-images').upload(fileName, file)
-  if (error) { console.error('Error subiendo imagen:', error); return null }
+  if (error) { logger.error('Error subiendo imagen:', error); return null }
   const { data } = supabase.storage.from('menu-images').getPublicUrl(fileName)
   return data.publicUrl
 }
@@ -377,13 +378,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarMenu = async () => {
     const { data, error } = await supabase.from("menu_items").select("*")
-    if (error) { console.error("Error cargando menu:", error); toast({ title: 'Error de conexión', description: 'No se pudo cargar el menú. Revisa tu conexión.', variant: 'destructive' }); return }
+    if (error) { logger.error("Error cargando menu:", error); toast({ title: 'Error de conexión', description: 'No se pudo cargar el menú. Revisa tu conexión.', variant: 'destructive' }); return }
     if (data) setState(prev => ({ ...prev, menuItems: data.map(mapMenuItem) }))
   }
 
   const cargarCategorias = async () => {
     const { data, error } = await supabase.from("categories").select("*").order("orden")
-    if (error) { console.error("Error cargando categorias:", error); return }
+    if (error) { logger.error("Error cargando categorias:", error); return }
     if (data) {
       setState(prev => {
         const existingMap = new Map(prev.categories.map(c => [c.id, c]))
@@ -402,13 +403,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .select('*')
       .not('status', 'in', '("entregado","cancelado")')
       .order('created_at')
-    if (error) { console.error('Error cargando pedidos:', error); return }
+    if (error) { logger.error('Error cargando pedidos:', error); return }
     if (data) setState(prev => ({ ...prev, orders: data.map(mapOrder) }))
   }
 
   const cargarUsers = async () => {
     const { data, error } = await supabase.from('profiles').select('id, username, nombre, role, activo, created_at').order('created_at')
-    if (error) { console.error('Error cargando usuarios:', error); return }
+    if (error) { logger.error('Error cargando usuarios:', error); return }
     if (data) {
       const users: User[] = data.map(p => ({
         id: p.id,
@@ -424,7 +425,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarIngredientes = async () => {
     const { data, error } = await supabase.from('ingredients').select('*').eq('activo', true).order('nombre')
-    if (error) { console.error('Error cargando ingredientes:', error); return }
+    if (error) { logger.error('Error cargando ingredientes:', error); return }
     if (data) setState(prev => ({ ...prev, ingredients: data.map(mapIngredient) }))
   }
 
@@ -436,7 +437,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .select('*')
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
-    if (error) { console.error('Error cargando ajustes:', error); return }
+    if (error) { logger.error('Error cargando ajustes:', error); return }
     if (data) {
       const ajustes: InventoryAdjustment[] = data.map(row => ({
         id: row.id as string,
@@ -453,7 +454,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarSesiones = async () => {
     const { data, error } = await supabase.from('table_sessions').select('*').eq('activa', true)
-    if (error) { console.error('Error cargando sesiones:', error); toast({ title: 'Error de conexión', description: 'No se pudieron cargar las sesiones de mesa.', variant: 'destructive' }); return }
+    if (error) { logger.error('Error cargando sesiones:', error); toast({ title: 'Error de conexión', description: 'No se pudieron cargar las sesiones de mesa.', variant: 'destructive' }); return }
     if (!data || data.length === 0) {
       setState(prev => ({ ...prev, tableSessions: [] }))
       return
@@ -485,7 +486,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarTables = async () => {
     const { data, error } = await supabase.from('tables_config').select('*').order('numero')
-    if (error) { console.error('Error cargando mesas:', error); return }
+    if (error) { logger.error('Error cargando mesas:', error); return }
     if (data) setState(prev => ({ ...prev, tables: data.map(mapTableConfig) }))
   }
 
@@ -497,7 +498,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .select('*')
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
-    if (error) { console.error('Error cargando reembolsos:', error); return }
+    if (error) { logger.error('Error cargando reembolsos:', error); return }
     if (data) {
       const refunds: Refund[] = data.map(row => ({
         id: row.id as string,
@@ -517,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarConfig = async () => {
     const { data, error } = await supabase.from('app_config').select('*').eq('id', 'default').single()
-    if (error) { console.error('Error cargando config:', error); return }
+    if (error) { logger.error('Error cargando config:', error); return }
     if (data) {
       const config: AppConfig = {
         impuestoPorcentaje: Number(data.impuesto_porcentaje) ?? 16,
@@ -542,7 +543,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .eq('atendido', false)
       .gte('created_at', since.toISOString())
       .order('created_at')
-    if (error) { console.error('Error cargando llamadas:', error); return }
+    if (error) { logger.error('Error cargando llamadas:', error); return }
     if (data) {
       const calls: WaiterCall[] = data.map(row => ({
         id: row.id as string,
@@ -577,7 +578,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .eq('activo', true)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
-    if (error) { console.error('Error cargando QR tokens:', error); return }
+    if (error) { logger.error('Error cargando QR tokens:', error); return }
     if (data) {
       const tokens: QRToken[] = data.map(row => ({
         id: row.id as string,
@@ -601,7 +602,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .select('*')
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
-    if (error) { console.error('Error cargando applied rewards:', error); return }
+    if (error) { logger.error('Error cargando applied rewards:', error); return }
     if (data) {
       const applied: AppliedReward[] = data.map(row => ({
         id: row.id as string,
@@ -623,7 +624,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
       .limit(500)
-    if (error) { console.error('Error cargando audit logs:', error); return }
+    if (error) { logger.error('Error cargando audit logs:', error); return }
     if (data) {
       const logs: AuditLog[] = data.map(row => ({
         id: row.id as string,
@@ -640,7 +641,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarDeliveryZones = async () => {
     const { data, error } = await supabase.from('delivery_zones').select('*').order('nombre')
-    if (error) { console.error('Error cargando zonas:', error); return }
+    if (error) { logger.error('Error cargando zonas:', error); return }
     if (data) {
       const zones: DeliveryZone[] = data.map(row => ({
         nombre: row.nombre as string,
@@ -654,7 +655,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cargarRewards = async () => {
     const { data, error } = await supabase.from('rewards').select('*').order('created_at')
-    if (error) { console.error('Error cargando recompensas:', error); return }
+    if (error) { logger.error('Error cargando recompensas:', error); return }
     if (data) {
       const rewards: Reward[] = data.map(row => ({
         id: row.id as string,
@@ -1073,7 +1074,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         detalles: log.detalles,
         entidad: log.entidad,
         entidad_id: log.entidadId,
-      }).then(({ error }) => { if (error) console.error('Error guardando audit log:', error) })
+      }).then(({ error }) => { if (error) logger.error('Error guardando audit log:', error) })
       return { ...prev, auditLogs: [...prev.auditLogs, log] }
     })
   }, [])
@@ -1231,37 +1232,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
           payment_status: 'pendiente',
           device_id: s.deviceId,
           expires_at: s.expiresAt.toISOString(),
-        }).then(({ error }) => { if (error) console.error('Error creando sesión:', error) })
+        }).then(({ error }) => { if (error) logger.error('Error creando sesión:', error) })
       } else {
         supabase.from('table_sessions').update({ subtotal: s.subtotal, impuestos: s.impuestos, total: s.total, bill_status: 'abierta', payment_status: 'pendiente' }).eq('id', s.id)
-          .then(({ error }) => { if (error) console.error('Error actualizando sesión:', error) })
+          .then(({ error }) => { if (error) logger.error('Error actualizando sesión:', error) })
       }
     }
 
-    // Persist order to Supabase
-    supabase.from('orders').insert({
-      id: order.id,
-      numero: order.numero,
-      canal: order.canal,
-      mesa: order.mesa ?? null,
-      items: order.items,
-      status: order.status,
-      cocina_a_status: order.cocinaAStatus,
-      cocina_b_status: order.cocinaBStatus,
-      nombre_cliente: order.nombreCliente ?? null,
-      telefono: order.telefono ?? null,
-      direccion: order.direccion ?? null,
-      zona_reparto: order.zonaReparto ?? null,
-      costo_envio: order.costoEnvio ?? 0,
-      created_at: order.createdAt.toISOString(),
-      updated_at: order.updatedAt.toISOString(),
+    // Persist order + deduct ingredients in a single atomic transaction
+    supabase.rpc('create_order_atomic', {
+      p_order: {
+        id: order.id,
+        numero: order.numero,
+        canal: order.canal,
+        mesa: order.mesa ?? null,
+        items: order.items,
+        status: order.status,
+        cocina_a_status: order.cocinaAStatus,
+        cocina_b_status: order.cocinaBStatus,
+        nombre_cliente: order.nombreCliente ?? null,
+        telefono: order.telefono ?? null,
+        direccion: order.direccion ?? null,
+        zona_reparto: order.zonaReparto ?? null,
+        costo_envio: order.costoEnvio ?? 0,
+        session_id: sessionSyncRef.data?.id ?? null,
+        created_at: order.createdAt.toISOString(),
+      },
+      p_deductions: deductions,
     }).then(({ error }) => {
-      if (error) { console.error('Error guardando pedido en Supabase:', error); toast({ title: 'Error al guardar pedido', description: 'El pedido se registró localmente pero no se pudo sincronizar.', variant: 'destructive' }); return }
-      // Atomically deduct ingredients in DB after order is confirmed saved
-      if (deductions.length > 0) {
-        supabase.rpc('deduct_ingredients', { deductions }).then(({ error: rpcErr }) => {
-          if (rpcErr) console.error('Error deduciendo ingredientes:', rpcErr)
-        })
+      if (error) {
+        logger.error('Error guardando pedido en Supabase:', error)
+        toast({ title: 'Error al guardar pedido', description: 'El pedido se registró localmente pero no se pudo sincronizar.', variant: 'destructive' })
       }
     })
 
@@ -1307,7 +1308,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (status === 'preparando') payload.tiempo_inicio_preparacion = now.toISOString()
     if (status === 'listo' || status === 'entregado') payload.tiempo_fin_preparacion = now.toISOString()
     supabase.from('orders').update(payload).eq('id', orderId).then(({ error }) => {
-      if (error) console.error('Error actualizando status de pedido:', error)
+      if (error) logger.error('Error actualizando status de pedido:', error)
     })
   }, [])
   
@@ -1400,7 +1401,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Persist to Supabase (payload was captured synchronously inside the updater)
     if (supabasePayload) {
       supabase.from('orders').update(supabasePayload).eq('id', orderId).then(({ error }) => {
-        if (error) console.error('Error actualizando cocina status:', error)
+        if (error) logger.error('Error actualizando cocina status:', error)
       })
     }
   }, [])
@@ -1459,7 +1460,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       device_id: session.deviceId,
       expires_at: session.expiresAt.toISOString(),
     }).then(({ error }) => {
-      if (error) console.error('Error guardando sesión:', error)
+      if (error) logger.error('Error guardando sesión:', error)
     })
 
     return session
@@ -1486,7 +1487,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     supabase.from('table_sessions').update({ activa: false, bill_status: 'cerrada' }).eq('id', sessionId).then(({ error }) => {
-      if (error) console.error('Error cerrando sesión:', error)
+      if (error) logger.error('Error cerrando sesión:', error)
     })
     logAction('cerrar_sesion', `Sesión cerrada sin cobro`, 'session', sessionId)
   }, [logAction])
@@ -1524,7 +1525,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })
     supabase.from('table_sessions').update({ subtotal, impuestos, total }).eq('id', sessionId).then(({ error }) => {
-      if (error) console.error('Error actualizando totales de sesión:', error)
+      if (error) logger.error('Error actualizando totales de sesión:', error)
     })
   }, [])
   
@@ -1542,7 +1543,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })
     supabase.from('table_sessions').update({ descuento, descuento_motivo: motivo, total }).eq('id', sessionId).then(({ error }) => {
-      if (error) console.error('Error aplicando descuento:', error)
+      if (error) logger.error('Error aplicando descuento:', error)
     })
     logAction('aplicar_descuento', `Descuento $${descuento} - ${motivo}`, 'session', sessionId)
   }, [logAction])
@@ -1561,7 +1562,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })
     supabase.from('table_sessions').update({ propina, total }).eq('id', sessionId).then(({ error }) => {
-      if (error) console.error('Error aplicando propina:', error)
+      if (error) logger.error('Error aplicando propina:', error)
     })
   }, [])
 
@@ -1573,7 +1574,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ),
     }))
     supabase.from('table_sessions').update({ payment_method: method, payment_status: 'solicitado' }).eq('id', sessionId).then(({ error }) => {
-      if (error) console.error('Error solicitando pago:', error)
+      if (error) logger.error('Error solicitando pago:', error)
     })
   }, [])
 
@@ -1601,7 +1602,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       payment_status: 'pagado',
       paid_at: new Date().toISOString(),
     }).eq('id', sessionId).then(({ error }) => {
-      if (error) { console.error('Error confirmando pago:', error); toast({ title: 'Error al confirmar pago', description: 'El pago no se pudo registrar en la base de datos.', variant: 'destructive' }) }
+      if (error) { logger.error('Error confirmando pago:', error); toast({ title: 'Error al confirmar pago', description: 'El pago no se pudo registrar en la base de datos.', variant: 'destructive' }) }
     })
     logAction('confirmar_pago', `Pago confirmado`, 'session', sessionId)
   }, [logAction])
@@ -1618,7 +1619,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
   supabase.from('table_sessions')
     .update({ payment_status: 'pendiente', payment_method: null, bill_status: 'abierta' })
     .eq('id', sessionId)
-    .then(({ error }) => { if (error) console.error('Error reseteando pago:', error) })
+    .then(({ error }) => { if (error) logger.error('Error reseteando pago:', error) })
 }, [])
 
 
@@ -1634,7 +1635,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     supabase.from('table_sessions')
       .update({ feedback_done: true })
       .eq('id', sessionId)
-      .then(({ error }) => { if (error) console.error('Error guardando feedback:', error) })
+      .then(({ error }) => { if (error) logger.error('Error guardando feedback:', error) })
   }, [])
 
   // ============ EMERGENCY ACTIONS ============
@@ -1665,13 +1666,13 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       supabase.from('table_sessions')
         .update({ activa: false, bill_status: 'cerrada' })
         .in('id', activeSessionIds)
-        .then(({ error }) => { if (error) console.error('Error cerrando sesiones emergency:', error) })
+        .then(({ error }) => { if (error) logger.error('Error cerrando sesiones emergency:', error) })
       if (activeMesasList.length > 0) {
         supabase.from('orders')
           .update({ status: 'cancelado', updated_at: new Date().toISOString() })
           .in('mesa', activeMesasList)
           .not('status', 'in', '("entregado","cancelado")')
-          .then(({ error }) => { if (error) console.error('Error cancelando orders en emergency close:', error) })
+          .then(({ error }) => { if (error) logger.error('Error cancelando orders en emergency close:', error) })
       }
     }
   }, [])
@@ -1696,12 +1697,12 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       supabase.from('table_sessions')
         .update({ activa: false, bill_status: 'cerrada' })
         .in('id', closedIds)
-        .then(({ error }) => { if (error) console.error('Error cerrando sesiones:', error) })
+        .then(({ error }) => { if (error) logger.error('Error cerrando sesiones:', error) })
       supabase.from('orders')
         .update({ status: 'cancelado', updated_at: new Date().toISOString() })
         .in('mesa', tables)
         .not('status', 'in', '("entregado","cancelado")')
-        .then(({ error }) => { if (error) console.error('Error cancelando orders en close tables:', error) })
+        .then(({ error }) => { if (error) logger.error('Error cancelando orders en close tables:', error) })
     }
   }, [])
   
@@ -1731,7 +1732,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       tipo: call.tipo,
       mensaje: call.mensaje ?? null,
       atendido: false,
-    }).then(({ error }) => { if (error) console.error('Error creando llamada de mesero:', error) })
+    }).then(({ error }) => { if (error) logger.error('Error creando llamada de mesero:', error) })
   }, [])
   
   const markCallAttended = useCallback((callId: string, userId: string) => {
@@ -1746,7 +1747,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     supabase.from('waiter_calls')
       .update({ atendido: true, atendido_por: userId, atendido_at: now.toISOString() })
       .eq('id', callId)
-      .then(({ error }) => { if (error) console.error('Error marcando llamada atendida:', error) })
+      .then(({ error }) => { if (error) logger.error('Error marcando llamada atendida:', error) })
   }, [])
   
   const getPendingCalls = useCallback((): WaiterCall[] => {
@@ -1799,14 +1800,14 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     supabase.from('table_sessions')
       .update({ descuento: newDescuento, descuento_motivo: reward.nombre, total: newTotal })
       .eq('id', sessionId)
-      .then(({ error }) => { if (error) console.error('Error aplicando recompensa:', error) })
+      .then(({ error }) => { if (error) logger.error('Error aplicando recompensa:', error) })
 
     supabase.from('applied_rewards').insert({
       id: applied.id,
       session_id: applied.sessionId,
       reward_id: applied.rewardId,
       descuento: applied.descuento,
-    }).then(({ error }) => { if (error) console.error('Error guardando applied_reward:', error) })
+    }).then(({ error }) => { if (error) logger.error('Error guardando applied_reward:', error) })
 
     return true
   }, [state.rewards, state.tableSessions, state.appliedRewards])
@@ -1833,7 +1834,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       accion: reward.accion,
       activo: reward.activo,
       usos_maximos: reward.usosMaximos ?? null,
-    }).then(({ error }) => { if (error) console.error('Error creando recompensa:', error) })
+    }).then(({ error }) => { if (error) logger.error('Error creando recompensa:', error) })
   }, [])
 
   const updateReward = useCallback((rewardId: string, updates: Partial<Reward>) => {
@@ -1850,13 +1851,13 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     if (updates.activo !== undefined) payload.activo = updates.activo
     if (updates.usosMaximos !== undefined) payload.usos_maximos = updates.usosMaximos ?? null
     supabase.from('rewards').update(payload).eq('id', rewardId)
-      .then(({ error }) => { if (error) console.error('Error actualizando recompensa:', error) })
+      .then(({ error }) => { if (error) logger.error('Error actualizando recompensa:', error) })
   }, [])
 
   const deleteReward = useCallback((rewardId: string) => {
     setState(prev => ({ ...prev, rewards: prev.rewards.filter(r => r.id !== rewardId) }))
     supabase.from('rewards').delete().eq('id', rewardId)
-      .then(({ error }) => { if (error) console.error('Error eliminando recompensa:', error) })
+      .then(({ error }) => { if (error) logger.error('Error eliminando recompensa:', error) })
   }, [])
 
   // ============ MENU ACTIONS ============
@@ -1888,7 +1889,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
       .eq("id", itemId)
 
     if (error) {
-      console.error("Error actualizando platillo:", error)
+      logger.error("Error actualizando platillo:", error)
       toast({ title: 'Error al guardar platillo', description: error.message, variant: 'destructive' })
       return
     }
@@ -1933,7 +1934,7 @@ const addMenuItem = useCallback(
       .select()
 
     if (error) {
-      console.error("Error creando platillo:", error)
+      logger.error("Error creando platillo:", error)
       toast({ title: 'Error al crear platillo', description: error.message, variant: 'destructive' })
       return
     }
@@ -1968,7 +1969,7 @@ const addMenuItem = useCallback(
     .eq("id", itemId)
 
   if (error) {
-    console.error("Error eliminando platillo:", error)
+    logger.error("Error eliminando platillo:", error)
     toast({ title: 'Error al eliminar platillo', description: error.message, variant: 'destructive' })
     return
   }
@@ -1998,7 +1999,7 @@ const addMenuItem = useCallback(
     .select()
 
   if (error) {
-    console.error("Error creando categoria:", error)
+    logger.error("Error creando categoria:", error)
     return
   }
 
@@ -2026,7 +2027,7 @@ const addMenuItem = useCallback(
         .eq("id", categoryId)
 
       if (error) {
-        console.error("Error actualizando categoría:", error)
+        logger.error("Error actualizando categoría:", error)
         return
       }
     }
@@ -2054,7 +2055,7 @@ const addMenuItem = useCallback(
     .eq("id", categoryId)
 
   if (error) {
-    console.error("Error eliminando categoria:", error)
+    logger.error("Error eliminando categoria:", error)
     return
   }
 
@@ -2082,7 +2083,7 @@ const addMenuItem = useCallback(
     ).then(results => {
       const failed = results.filter(r => r.error)
       if (failed.length > 0) {
-        console.error('Error reordenando platillos:', failed[0].error)
+        logger.error('Error reordenando platillos:', failed[0].error)
         toast({ title: 'Error al reordenar', description: 'No se pudo guardar el nuevo orden.', variant: 'destructive' })
       }
     })
@@ -2103,7 +2104,7 @@ const addMenuItem = useCallback(
     ).then(results => {
       const failed = results.filter(r => r.error)
       if (failed.length > 0) {
-        console.error('Error reordenando categorías:', failed[0].error)
+        logger.error('Error reordenando categorías:', failed[0].error)
         toast({ title: 'Error al reordenar', description: 'No se pudo guardar el nuevo orden.', variant: 'destructive' })
       }
     })
@@ -2126,7 +2127,7 @@ const addMenuItem = useCallback(
       capacidad: newTable.capacidad,
       ubicacion: newTable.ubicacion ?? null,
       activa: true,
-    }).then(({ error }) => { if (error) console.error('Error guardando mesa:', error) })
+    }).then(({ error }) => { if (error) logger.error('Error guardando mesa:', error) })
     logAction('crear_mesa', `Mesa ${numero} creada (cap. ${capacidad})`, 'table', newTable.id)
   }, [logAction])
 
@@ -2143,14 +2144,14 @@ const addMenuItem = useCallback(
     if (updates.ubicacion !== undefined) dbUpdates.ubicacion = updates.ubicacion
     if (Object.keys(dbUpdates).length > 0) {
       supabase.from('tables_config').update(dbUpdates).eq('id', tableId)
-        .then(({ error }) => { if (error) console.error('Error actualizando mesa:', error) })
+        .then(({ error }) => { if (error) logger.error('Error actualizando mesa:', error) })
     }
   }, [])
 
   const deleteTable = useCallback((tableId: string) => {
     setState(prev => ({ ...prev, tables: prev.tables.filter(table => table.id !== tableId) }))
     supabase.from('tables_config').delete().eq('id', tableId)
-      .then(({ error }) => { if (error) console.error('Error eliminando mesa:', error) })
+      .then(({ error }) => { if (error) logger.error('Error eliminando mesa:', error) })
     logAction('eliminar_mesa', `Mesa eliminada`, 'table', tableId)
   }, [logAction])
   
@@ -2188,7 +2189,7 @@ const addMenuItem = useCallback(
     if (updates.activo !== undefined) payload.activo = updates.activo
     if (Object.keys(payload).length > 0) {
       supabase.from('ingredients').update(payload).eq('id', ingredientId).then(({ error }) => {
-        if (error) console.error('Error actualizando ingrediente:', error)
+        if (error) logger.error('Error actualizando ingrediente:', error)
       })
     }
   }, [])
@@ -2211,7 +2212,7 @@ const addMenuItem = useCallback(
       costo_unitario: ingredient.costoUnitario,
       activo: ingredient.activo,
     }]).then(({ error }) => {
-      if (error) console.error('Error creando ingrediente:', error)
+      if (error) logger.error('Error creando ingrediente:', error)
     })
     logAction('crear_ingrediente', `Ingrediente creado: ${ingredient.nombre}`, 'ingredient', newId)
   }, [logAction])
@@ -2260,10 +2261,10 @@ const addMenuItem = useCallback(
       motivo,
       user_id: userId === 'system' ? null : userId,
     }]).then(({ error }) => {
-      if (error) console.error('Error guardando ajuste:', error)
+      if (error) logger.error('Error guardando ajuste:', error)
     })
     supabase.from('ingredients').update({ stock_actual: newStock }).eq('id', ingredientId).then(({ error }) => {
-      if (error) console.error('Error actualizando stock:', error)
+      if (error) logger.error('Error actualizando stock:', error)
     })
     logAction('ajuste_inventario', `${tipo}: ${cantidad} - ${motivo}`, 'ingredient', ingredientId)
   }, [state.currentUser, logAction])
@@ -2288,7 +2289,7 @@ const addMenuItem = useCallback(
     if (updates.sonidoNuevosPedidos !== undefined) payload.sonido_nuevos_pedidos = updates.sonidoNuevosPedidos
     if (updates.notificacionesStockBajo !== undefined) payload.notificaciones_stock_bajo = updates.notificacionesStockBajo
     supabase.from('app_config').update(payload).eq('id', 'default').then(({ error }) => {
-      if (error) console.error('Error guardando configuración:', error)
+      if (error) logger.error('Error guardando configuración:', error)
     })
   }, [])
   
@@ -2349,10 +2350,10 @@ const addMenuItem = useCallback(
 
     // Persist to Supabase
     supabase.from('orders').delete().eq('id', orderId).then(({ error }) => {
-      if (error) { console.error('Error eliminando pedido en Supabase:', error); return }
+      if (error) { logger.error('Error eliminando pedido en Supabase:', error); return }
       if (restorations.length > 0) {
         supabase.rpc('restore_ingredients', { restorations }).then(({ error: rpcErr }) => {
-          if (rpcErr) console.error('Error restaurando ingredientes:', rpcErr)
+          if (rpcErr) logger.error('Error restaurando ingredientes:', rpcErr)
         })
       }
     })
@@ -2410,7 +2411,7 @@ const addMenuItem = useCallback(
     supabase.from('orders')
       .update({ items, updated_at: new Date().toISOString() })
       .eq('id', orderId)
-      .then(({ error }) => { if (error) console.error('Error actualizando items del pedido:', error) })
+      .then(({ error }) => { if (error) logger.error('Error actualizando items del pedido:', error) })
 
     return true
   }, [state.orders])
@@ -2448,7 +2449,7 @@ const addMenuItem = useCallback(
   supabase.from('orders')
     .update({ status: 'entregado', updated_at: now.toISOString() })
     .eq('id', orderId)
-    .then(({ error }) => { if (error) console.error('Error marcando pedido entregado:', error) })
+    .then(({ error }) => { if (error) logger.error('Error marcando pedido entregado:', error) })
 }, [])
 
   
@@ -2486,7 +2487,7 @@ const addMenuItem = useCallback(
       ),
     }))
     supabase.from('qr_tokens').update({ activo: false }).eq('mesa', mesa).eq('activo', true)
-      .then(({ error }) => { if (error) console.error('Error invalidando QR tokens anteriores:', error) })
+      .then(({ error }) => { if (error) logger.error('Error invalidando QR tokens anteriores:', error) })
 
     const newToken = createQRToken(mesa, state.config.tiempoExpiracionSesionMinutos)
 
@@ -2500,7 +2501,7 @@ const addMenuItem = useCallback(
       token: newToken.token,
       expires_at: newToken.expiresAt.toISOString(),
       activo: true,
-    }).then(({ error }) => { if (error) console.error('Error guardando QR token:', error) })
+    }).then(({ error }) => { if (error) logger.error('Error guardando QR token:', error) })
 
     return newToken
   }, [state.config.tiempoExpiracionSesionMinutos])
@@ -2521,7 +2522,7 @@ const addMenuItem = useCallback(
       ),
     }))
     supabase.from('qr_tokens').update({ activo: false }).eq('id', tokenId)
-      .then(({ error }) => { if (error) console.error('Error invalidando QR token:', error) })
+      .then(({ error }) => { if (error) logger.error('Error invalidando QR token:', error) })
   }, [])
   
   const getActiveQRForTable = useCallback((mesa: number): QRToken | undefined => {
@@ -2581,10 +2582,10 @@ const addMenuItem = useCallback(
       inventario_revertido: refund.inventarioRevertido,
       user_id: refund.userId,
     }).then(({ error }) => {
-      if (error) { console.error('Error guardando reembolso:', error); return }
+      if (error) { logger.error('Error guardando reembolso:', error); return }
       if (restorations.length > 0) {
         supabase.rpc('restore_ingredients', { restorations }).then(({ error: rpcErr }) => {
-          if (rpcErr) console.error('Error restaurando ingredientes en reembolso:', rpcErr)
+          if (rpcErr) logger.error('Error restaurando ingredientes en reembolso:', rpcErr)
         })
       }
     })
@@ -2614,7 +2615,7 @@ const addMenuItem = useCallback(
     if (updates.tiempoEstimado !== undefined) payload.tiempo_estimado = updates.tiempoEstimado
     if (updates.activa !== undefined) payload.activa = updates.activa
     supabase.from('delivery_zones').update(payload).eq('nombre', zonaNombre)
-      .then(({ error }) => { if (error) console.error('Error actualizando zona:', error) })
+      .then(({ error }) => { if (error) logger.error('Error actualizando zona:', error) })
   }, [])
 
   const addDeliveryZone = useCallback((zone: DeliveryZone) => {
@@ -2627,7 +2628,7 @@ const addMenuItem = useCallback(
       costo_envio: zone.costoEnvio,
       tiempo_estimado: zone.tiempoEstimado,
       activa: zone.activa,
-    }).then(({ error }) => { if (error) console.error('Error creando zona:', error) })
+    }).then(({ error }) => { if (error) logger.error('Error creando zona:', error) })
   }, [])
   
   const deleteDeliveryZone = useCallback((zonaNombre: string) => {
@@ -2636,7 +2637,7 @@ const addMenuItem = useCallback(
       deliveryZones: prev.deliveryZones.filter(z => z.nombre !== zonaNombre),
     }))
     supabase.from('delivery_zones').delete().eq('nombre', zonaNombre)
-      .then(({ error }) => { if (error) console.error('Error eliminando zona:', error) })
+      .then(({ error }) => { if (error) logger.error('Error eliminando zona:', error) })
   }, [])
 
   const calculateDeliveryCost = useCallback((zonaNombre: string): number => {

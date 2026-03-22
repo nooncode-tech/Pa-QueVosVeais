@@ -4,6 +4,13 @@ import React, { useEffect, useState } from 'react'
 import { Plus, Edit2, Shield, ChefHat, UserCheck, Trash2, Loader2, RefreshCw } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { supabase } from '@/lib/supabase'
+
+async function adminFetch(url: string, options: RequestInit): Promise<Response> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+  return fetch(url, { ...options, headers })
+}
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -54,9 +61,8 @@ export function UsersManager() {
     // Optimistic update
     setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, activo: !p.activo } : p))
 
-    const res = await fetch('/api/admin/users', {
+    const res = await adminFetch('/api/admin/users', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: profile.id, updates: { activo: !profile.activo } }),
     })
     if (!res.ok) {
@@ -66,33 +72,21 @@ export function UsersManager() {
   }
 
   const handleCreate = async (data: { username: string; password: string; nombre: string; role: UserRole }) => {
-    const res = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+    const res = await adminFetch('/api/admin/users', { method: 'POST', body: JSON.stringify(data) })
     const json = await res.json()
     if (res.ok) { await loadProfiles(); return null }
     return json.error as string
   }
 
   const handleUpdate = async (userId: string, updates: Partial<Profile>) => {
-    const res = await fetch('/api/admin/users', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, updates }),
-    })
+    const res = await adminFetch('/api/admin/users', { method: 'PUT', body: JSON.stringify({ userId, updates }) })
     const json = await res.json()
     if (res.ok) { await loadProfiles(); return null }
     return json.error as string
   }
 
   const handleDelete = async (userId: string) => {
-    const res = await fetch('/api/admin/users', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    })
+    const res = await adminFetch('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ userId }) })
     if (res.ok) { await loadProfiles(); return null }
     const json = await res.json()
     return json.error as string

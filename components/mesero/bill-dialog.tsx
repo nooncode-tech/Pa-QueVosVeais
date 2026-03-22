@@ -39,6 +39,7 @@ const quickDiscounts = [
   const [propina, setPropina] = useState(session?.propina?.toString() || '0')
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [paying, setPaying] = useState(false)
   
   if (!session) {
     return null
@@ -47,11 +48,17 @@ const quickDiscounts = [
   session.billStatus === 'pagada' ||
   session.billStatus === 'cerrada'
 
+  const maxDiscount = session.subtotal + session.impuestos
+
   const handleApplyDiscount = () => {
     const amount = Number.parseFloat(descuento) || 0
-    if (amount > 0 && motivoDescuento.trim()) {
-      applyDiscount(sessionId, amount, motivoDescuento)
+    if (amount <= 0 || !motivoDescuento.trim()) return
+    if (amount > maxDiscount) {
+      setDescuento(maxDiscount.toString())
+      applyDiscount(sessionId, maxDiscount, motivoDescuento)
+      return
     }
+    applyDiscount(sessionId, amount, motivoDescuento)
   }
   
   const handleSetTip = (amount: number) => {
@@ -60,16 +67,13 @@ const quickDiscounts = [
   }
   
   const handleConfirmPayment = () => {
-  if (!selectedMethod) return
-
-  // Avoid double payment
-  if (session.paymentStatus === 'pagado') return
-
-  // Set payment method first, then confirm
-  requestPayment(sessionId, selectedMethod)
-  confirmPayment(sessionId)
-  onClose()
-}
+    if (!selectedMethod || paying) return
+    if (session.paymentStatus === 'pagado') return
+    setPaying(true)
+    requestPayment(sessionId, selectedMethod)
+    confirmPayment(sessionId)
+    onClose()
+  }
 
 
 
@@ -194,9 +198,11 @@ const quickDiscounts = [
   {/* Descuento manual */}
   <div className="grid grid-cols-3 gap-2">
     <div>
-      <Label className="text-xs text-muted-foreground">Monto</Label>
+      <Label className="text-xs text-muted-foreground">Monto (máx. {formatPrice(maxDiscount)})</Label>
       <Input
         type="number"
+        min="0"
+        max={maxDiscount}
         value={descuento}
         onChange={(e) => setDescuento(e.target.value)}
         placeholder="0"
@@ -408,6 +414,7 @@ const quickDiscounts = [
                     <Button
                       className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
                       onClick={handleConfirmPayment}
+                      disabled={paying}
                     >
                       Confirmar
                     </Button>
