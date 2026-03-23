@@ -44,6 +44,11 @@ const quickDiscounts = [
   const [paying, setPaying] = useState(false)
   const [showSplit, setShowSplit] = useState(false)
   const [cashGiven, setCashGiven] = useState('')
+  // Pago mixto
+  const [isMixto, setIsMixto] = useState(false)
+  const [mixtoMethod2, setMixtoMethod2] = useState<PaymentMethod | null>(null)
+  const [mixtoAmount1, setMixtoAmount1] = useState('')
+  const [mixtoAmount2, setMixtoAmount2] = useState('')
   
   if (!session) {
     return null
@@ -74,9 +79,26 @@ const quickDiscounts = [
     if (!selectedMethod || paying) return
     if (session.paymentStatus === 'pagado') return
     setPaying(true)
+    if (isMixto && mixtoMethod2) {
+      const a1 = Number(mixtoAmount1) || 0
+      const a2 = Number(mixtoAmount2) || 0
+      logAction('pago_mixto', `Pago mixto: ${selectedMethod} $${a1.toFixed(2)} + ${mixtoMethod2} $${a2.toFixed(2)} | Total $${calculatedTotal.toFixed(2)} | Mesa ${session.mesa}`, 'session', sessionId)
+    }
     requestPayment(sessionId, selectedMethod)
     confirmPayment(sessionId)
     onClose()
+  }
+
+  const handleToggleMixto = () => {
+    setIsMixto(v => {
+      if (!v) {
+        // pre-fill amounts
+        const half = Math.round(calculatedTotal / 2 * 100) / 100
+        setMixtoAmount1(half.toString())
+        setMixtoAmount2((calculatedTotal - half).toString())
+      }
+      return !v
+    })
   }
 
 
@@ -300,23 +322,102 @@ const quickDiscounts = [
           
           {/* Payment Method */}
           <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2">Método de pago</h3>
-            <div className="grid grid-cols-3 gap-2">
-              {paymentMethods.map((method) => (
-                <button
-                  key={method.key}
-                  onClick={() => setSelectedMethod(method.key)}
-                  className={`p-3 rounded-xl border text-center transition-all ${
-                    selectedMethod === method.key
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border hover:border-primary/50'
-                  }`}
-                >
-                  <div className="flex justify-center mb-1">{method.icon}</div>
-                  <span className="text-xs font-medium">{method.label}</span>
-                </button>
-              ))}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-foreground">Método de pago</h3>
+              <button
+                type="button"
+                onClick={handleToggleMixto}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${isMixto ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}
+              >
+                Pago mixto
+              </button>
             </div>
+            {!isMixto ? (
+              <div className="grid grid-cols-3 gap-2">
+                {paymentMethods.map((method) => (
+                  <button
+                    key={method.key}
+                    onClick={() => setSelectedMethod(method.key)}
+                    className={`p-3 rounded-xl border text-center transition-all ${
+                      selectedMethod === method.key
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="flex justify-center mb-1">{method.icon}</div>
+                    <span className="text-xs font-medium">{method.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3 bg-secondary/40 rounded-xl p-3">
+                <p className="text-xs text-muted-foreground">Divide el total entre dos métodos</p>
+                <div className="space-y-2">
+                  {/* Method 1 */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-5">1.</span>
+                    <div className="flex gap-1.5 flex-1 flex-wrap">
+                      {paymentMethods.map(m => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setSelectedMethod(m.key)}
+                          className={`flex-1 min-w-[60px] py-1.5 rounded-lg text-xs border text-center transition-colors ${selectedMethod === m.key ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:border-primary/50'}`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={calculatedTotal}
+                      value={mixtoAmount1}
+                      onChange={e => {
+                        setMixtoAmount1(e.target.value)
+                        const v1 = Number(e.target.value) || 0
+                        setMixtoAmount2(Math.max(0, calculatedTotal - v1).toFixed(2))
+                      }}
+                      className="w-24 h-8 text-sm"
+                    />
+                  </div>
+                  {/* Method 2 */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-5">2.</span>
+                    <div className="flex gap-1.5 flex-1 flex-wrap">
+                      {paymentMethods.filter(m => m.key !== selectedMethod).map(m => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setMixtoMethod2(m.key)}
+                          className={`flex-1 min-w-[60px] py-1.5 rounded-lg text-xs border text-center transition-colors ${mixtoMethod2 === m.key ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:border-primary/50'}`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={calculatedTotal}
+                      value={mixtoAmount2}
+                      onChange={e => {
+                        setMixtoAmount2(e.target.value)
+                        const v2 = Number(e.target.value) || 0
+                        setMixtoAmount1(Math.max(0, calculatedTotal - v2).toFixed(2))
+                      }}
+                      className="w-24 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs pt-1 border-t border-border">
+                  <span className="text-muted-foreground">Suma:</span>
+                  <span className={Math.abs((Number(mixtoAmount1)||0) + (Number(mixtoAmount2)||0) - calculatedTotal) < 0.01 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>
+                    {formatPrice((Number(mixtoAmount1)||0) + (Number(mixtoAmount2)||0))} / {formatPrice(calculatedTotal)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Cobro en efectivo - calculadora de cambio */}
@@ -450,7 +551,7 @@ const quickDiscounts = [
             <Button
   className="flex-1 h-10 bg-success hover:bg-success/90 text-success-foreground"
   onClick={() => setShowConfirm(true)}
-  disabled={!selectedMethod || isAlreadyPaid || calculatedTotal <= 0}
+  disabled={!selectedMethod || isAlreadyPaid || calculatedTotal <= 0 || (isMixto && (!mixtoMethod2 || Math.abs((Number(mixtoAmount1)||0) + (Number(mixtoAmount2)||0) - calculatedTotal) > 0.01))}
 >
 
               <Check className="h-4 w-4 mr-1.5" />
@@ -493,7 +594,17 @@ const quickDiscounts = [
                 <p className="text-sm text-muted-foreground mb-4">
                   Total a cobrar: <span className="font-bold text-foreground">{formatPrice(calculatedTotal)}</span>
                   <br />
-                  Método: <span className="capitalize">{selectedMethod}</span>
+                  {isMixto && mixtoMethod2 ? (
+                    <>
+                      <span className="capitalize">{selectedMethod}</span>{' '}
+                      <span className="font-bold text-foreground">{formatPrice(Number(mixtoAmount1)||0)}</span>
+                      {' + '}
+                      <span className="capitalize">{mixtoMethod2}</span>{' '}
+                      <span className="font-bold text-foreground">{formatPrice(Number(mixtoAmount2)||0)}</span>
+                    </>
+                  ) : (
+                    <>Método: <span className="capitalize">{selectedMethod}</span></>
+                  )}
                 </p>
                 <div className="flex gap-2">
                   <Button

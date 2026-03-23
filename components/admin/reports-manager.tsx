@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { TrendingUp, DollarSign, ShoppingBag, Clock, Users, Utensils, BarChart3 } from 'lucide-react'
+import { TrendingUp, DollarSign, ShoppingBag, Clock, Users, Utensils, BarChart3, TrendingDown, Percent, Download } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatPrice } from '@/lib/store'
@@ -61,7 +61,7 @@ interface OrderRow {
 }
 
 export function ReportsManager() {
-  const { orders, tableSessions } = useApp()
+  const { orders, tableSessions, menuItems, ingredients } = useApp()
   const [range, setRange] = useState<DateRange>('today')
   const [historicalData, setHistoricalData] = useState<HistoricalDay[]>([])
   const [peakHoursData, setPeakHoursData] = useState<{ hora: string; pedidos: number }[]>([])
@@ -210,10 +210,63 @@ export function ReportsManager() {
 
   const activeTables = tableSessions.filter(s => s.activa).length
 
+  // Recipe costing: calculate cost and margin per menu item
+  const ingredientMap = useMemo(
+    () => new Map(ingredients.map(i => [i.id, i])),
+    [ingredients]
+  )
+  const itemMargins = useMemo(() => {
+    return menuItems
+      .filter(item => item.disponible)
+      .map(item => {
+        let recipeCost = 0
+        if (item.receta && item.receta.length > 0) {
+          for (const ri of item.receta) {
+            const ing = ingredientMap.get(ri.ingredientId)
+            if (ing) recipeCost += ing.costoUnitario * ri.cantidad
+          }
+        }
+        const margin = item.precio > 0 ? ((item.precio - recipeCost) / item.precio) * 100 : null
+        return { id: item.id, nombre: item.nombre, precio: item.precio, costo: recipeCost, margin }
+      })
+      .filter(i => i.margin !== null)
+      .sort((a, b) => (a.margin ?? 0) - (b.margin ?? 0))
+  }, [menuItems, ingredientMap])
+
   const today = new Date()
 
   // Chart color
   const chartColor = 'hsl(var(--primary))'
+
+  const exportCSV = () => {
+    const rows: string[][] = [
+      ['Fecha', 'Folio', 'Canal', 'Mesa', 'Items', 'Total'],
+    ]
+    const rangeOrders = orders.filter(o => new Date(o.createdAt) >= rangeStart && o.status !== 'cancelado')
+    for (const o of rangeOrders) {
+      const subtotal = o.items.reduce((sum, item) => {
+        const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
+        return sum + (item.menuItem.precio + extrasTotal) * item.cantidad
+      }, 0)
+      const total = subtotal + (o.costoEnvio ?? 0)
+      rows.push([
+        new Date(o.createdAt).toLocaleString('es-MX'),
+        String(o.numero),
+        o.canal,
+        o.mesa ? String(o.mesa) : '',
+        o.items.map(i => `${i.cantidad}x ${i.menuItem.nombre}`).join(' | '),
+        total.toFixed(2),
+      ])
+    }
+    const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `ventas-${RANGE_LABELS[range].toLowerCase().replace(/ /g, '-')}-${today.toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="p-3">
@@ -228,20 +281,30 @@ export function ReportsManager() {
           </p>
         </div>
 
-        {/* Range selector */}
-        <div className="flex rounded-lg border border-border overflow-hidden text-[10px] font-medium">
-          {(['today', 'week', 'month'] as DateRange[]).map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                'px-2.5 py-1.5 transition-colors',
-                range === r ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-secondary'
-              )}
-            >
-              {RANGE_LABELS[r]}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          {/* Range selector */}
+          <div className="flex rounded-lg border border-border overflow-hidden text-[10px] font-medium">
+            {(['today', 'week', 'month'] as DateRange[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={cn(
+                  'px-2.5 py-1.5 transition-colors',
+                  range === r ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-secondary'
+                )}
+              >
+                {RANGE_LABELS[r]}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-[10px] font-medium bg-background text-muted-foreground hover:bg-secondary transition-colors"
+            title="Exportar a CSV"
+          >
+            <Download className="h-3 w-3" />
+            CSV
+          </button>
         </div>
       </div>
 
@@ -427,7 +490,7 @@ export function ReportsManager() {
       </Card>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         <Card>
           <CardContent className="p-2 text-center">
             <p className="text-sm font-bold text-foreground">{formatPrice(avgOrderValue)}</p>
@@ -441,6 +504,55 @@ export function ReportsManager() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recipe Costing / Margins */}
+      {itemMargins.length > 0 && (
+        <Card>
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-xs flex items-center gap-1.5">
+              <Percent className="h-3.5 w-3.5" />
+              Margen por platillo (receta configurada)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="space-y-2">
+              {itemMargins.map(item => {
+                const pct = item.margin ?? 0
+                const color = pct >= 60 ? 'text-success' : pct >= 40 ? 'text-amber-600' : 'text-destructive'
+                const bar = pct >= 60 ? 'bg-success' : pct >= 40 ? 'bg-amber-500' : 'bg-destructive'
+                return (
+                  <div key={item.id}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs text-foreground truncate max-w-[140px]">{item.nombre}</span>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <span className={`text-xs font-bold ${color}`}>{pct.toFixed(0)}%</span>
+                        <span className="text-[9px] text-muted-foreground ml-1.5">
+                          {formatPrice(item.precio)} / costo {formatPrice(item.costo)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div className={`h-full ${bar} rounded-full`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-[9px] text-muted-foreground mt-2">
+              Verde ≥ 60% · Amarillo 40–60% · Rojo &lt; 40%. Configura recetas en el menú para ver datos.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {itemMargins.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="p-3 text-center">
+            <TrendingDown className="h-6 w-6 mx-auto mb-1 text-muted-foreground opacity-40" />
+            <p className="text-[10px] text-muted-foreground">Asigna recetas a tus platillos para ver márgenes de costo</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

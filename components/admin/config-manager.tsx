@@ -30,6 +30,7 @@ export function ConfigManager() {
     metodospagoActivos: config.metodospagoActivos || DEFAULT_METODOS_PAGO,
     sonidoNuevosPedidos: config.sonidoNuevosPedidos ?? true,
     notificacionesStockBajo: config.notificacionesStockBajo ?? true,
+    autoPrintComanda: config.autoPrintComanda ?? false,
   }
   
   const [localConfig, setLocalConfig] = useState({ ...safeConfig })
@@ -276,10 +277,21 @@ export function ConfigManager() {
               </div>
               <Switch
                 checked={localConfig.notificacionesStockBajo}
-                onCheckedChange={(checked) => setLocalConfig(prev => ({ 
-                  ...prev, 
-                  notificacionesStockBajo: checked 
+                onCheckedChange={(checked) => setLocalConfig(prev => ({
+                  ...prev,
+                  notificacionesStockBajo: checked
                 }))}
+                className="scale-75"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-[10px]">Auto-imprimir comanda</Label>
+                <p className="text-[9px] text-muted-foreground">Imprime ticket de cocina al crear cada orden</p>
+              </div>
+              <Switch
+                checked={localConfig.autoPrintComanda}
+                onCheckedChange={(checked) => setLocalConfig(prev => ({ ...prev, autoPrintComanda: checked }))}
                 className="scale-75"
               />
             </div>

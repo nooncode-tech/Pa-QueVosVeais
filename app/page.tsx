@@ -7,6 +7,7 @@ import { ClienteView } from '@/components/cliente/cliente-view'
 import { MeseroView } from '@/components/mesero/mesero-view'
 import { KDSView } from '@/components/kds/kds-view'
 import { AdminView } from '@/components/admin/admin-view'
+import { ErrorBoundary } from '@/components/error-boundary'
 import type { UserRole } from '@/lib/store'
 
 type AppView = 'login' | 'cliente' | 'admin' | 'mesero' | 'cocina_a' | 'cocina_b'
@@ -79,52 +80,62 @@ function AppContent() {
 
   // Cliente view (QR access - no login required)
   if (view === 'cliente' && clienteMesa) {
-    return <ClienteView mesa={clienteMesa} onBack={handleClienteExit} />
+    return (
+      <ErrorBoundary label="Vista Cliente">
+        <ClienteView mesa={clienteMesa} onBack={handleClienteExit} />
+      </ErrorBoundary>
+    )
   }
-  
+
   // Login screen
   if (view === 'login' || !currentUser) {
     return (
-      <LoginScreen 
-        onLoginSuccess={handleLoginSuccess}
-        onClienteAccess={handleClienteAccess}
-      />
+      <ErrorBoundary label="Login">
+        <LoginScreen
+          onLoginSuccess={handleLoginSuccess}
+          onClienteAccess={handleClienteAccess}
+        />
+      </ErrorBoundary>
     )
   }
-  
+
   // Role-based views (require login)
   switch (view) {
     case 'admin':
-      if (currentUser.role !== 'admin') {
-        setView('login')
-        return null
-      }
-      return <AdminView onBack={handleLogout} />
-      
+      if (currentUser.role !== 'admin') { setView('login'); return null }
+      return (
+        <ErrorBoundary label="Admin">
+          <AdminView onBack={handleLogout} />
+        </ErrorBoundary>
+      )
+
     case 'mesero':
-      if (currentUser.role !== 'mesero') {
-        setView('login')
-        return null
-      }
-      return <MeseroView onBack={handleLogout} />
-      
+      if (currentUser.role !== 'mesero') { setView('login'); return null }
+      return (
+        <ErrorBoundary label="Mesero">
+          <MeseroView onBack={handleLogout} />
+        </ErrorBoundary>
+      )
+
     case 'cocina_a':
-      if (currentUser.role !== 'cocina_a') {
-        setView('login')
-        return null
-      }
-      return <KDSView kitchen="a" onBack={handleLogout} />
-      
+      if (currentUser.role !== 'cocina_a') { setView('login'); return null }
+      return (
+        <ErrorBoundary label="Cocina A">
+          <KDSView kitchen="a" onBack={handleLogout} />
+        </ErrorBoundary>
+      )
+
     case 'cocina_b':
-      if (currentUser.role !== 'cocina_b') {
-        setView('login')
-        return null
-      }
-      return <KDSView kitchen="b" onBack={handleLogout} />
-      
+      if (currentUser.role !== 'cocina_b') { setView('login'); return null }
+      return (
+        <ErrorBoundary label="Cocina B">
+          <KDSView kitchen="b" onBack={handleLogout} />
+        </ErrorBoundary>
+      )
+
     default:
       return (
-        <LoginScreen 
+        <LoginScreen
           onLoginSuccess={handleLoginSuccess}
           onClienteAccess={handleClienteAccess}
         />

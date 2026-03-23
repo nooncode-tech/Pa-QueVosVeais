@@ -52,10 +52,14 @@ import { AuditLogViewer } from './audit-log-viewer'
 import { OrdersHistory } from './orders-history'
 import { RewardsManager } from './rewards-manager'
 import { ReservationsManager } from './reservations-manager'
+import { ShiftsManager } from './shifts-manager'
+import { FacturasManager } from './facturas-manager'
+import { SucursalesManager } from './sucursales-manager'
+import { CrmManager } from './crm-manager'
 import { useApp } from '@/lib/context'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Clock4, FileText, Building2, Contact } from 'lucide-react'
 
-type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history' | 'rewards' | 'reservations'
+type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history' | 'rewards' | 'reservations' | 'shifts' | 'facturas' | 'sucursales' | 'crm'
 
 interface AdminViewProps {
   onBack: () => void
@@ -104,6 +108,8 @@ export function AdminView({ onBack }: AdminViewProps) {
         { id: 'rewards', label: 'Recompensas', icon: <Star className="h-5 w-5" /> },
         { id: 'refunds', label: 'Reembolsos', icon: <RotateCcw className="h-5 w-5" />, badge: pendingRefundsCount > 0 ? pendingRefundsCount : undefined },
         { id: 'reservations', label: 'Reservaciones', icon: <CalendarDays className="h-5 w-5" /> },
+        { id: 'shifts', label: 'Turnos', icon: <Clock4 className="h-5 w-5" /> },
+        { id: 'facturas', label: 'Facturas CFDI', icon: <FileText className="h-5 w-5" /> },
       ]
     },
     {
@@ -113,6 +119,8 @@ export function AdminView({ onBack }: AdminViewProps) {
         { id: 'history', label: 'Historial Mesas', icon: <History className="h-5 w-5" /> },
         { id: 'audit', label: 'Bitácora', icon: <LayoutDashboard className="h-5 w-5" /> },
         { id: 'users', label: 'Usuarios', icon: <Users className="h-5 w-5" /> },
+        { id: 'sucursales', label: 'Sucursales', icon: <Building2 className="h-5 w-5" /> },
+        { id: 'crm', label: 'CRM Clientes', icon: <Contact className="h-5 w-5" /> },
         { id: 'config', label: 'Configuracion', icon: <Settings className="h-5 w-5" /> },
       ]
     },
@@ -207,6 +215,30 @@ export function AdminView({ onBack }: AdminViewProps) {
             <div className="p-4">
               <h2 className="text-base font-bold mb-4">Reservaciones</h2>
               <ReservationsManager />
+            </div>
+          )}
+          {screen === 'shifts' && (
+            <div className="p-4">
+              <h2 className="text-base font-bold mb-4">Turnos de Empleados</h2>
+              <ShiftsManager />
+            </div>
+          )}
+          {screen === 'facturas' && (
+            <div className="p-4">
+              <h2 className="text-base font-bold mb-4">Solicitudes de Factura</h2>
+              <FacturasManager />
+            </div>
+          )}
+          {screen === 'sucursales' && (
+            <div className="p-4">
+              <h2 className="text-base font-bold mb-4">Sucursales</h2>
+              <SucursalesManager />
+            </div>
+          )}
+          {screen === 'crm' && (
+            <div className="p-4">
+              <h2 className="text-base font-bold mb-4">CRM Clientes</h2>
+              <CrmManager />
             </div>
           )}
         </div>
@@ -428,6 +460,15 @@ export function AdminView({ onBack }: AdminViewProps) {
             {screen === 'users' && <UsersManager />}
             {screen === 'config' && <ConfigManager />}
             {screen === 'reservations' && <ReservationsManager />}
+            {screen === 'shifts' && <ShiftsManager />}
+            {screen === 'facturas' && <FacturasManager />}
+            {screen === 'sucursales' && <SucursalesManager />}
+            {screen === 'crm' && (
+              <div className="p-6">
+                <h2 className="text-lg font-bold mb-4">CRM Clientes</h2>
+                <CrmManager />
+              </div>
+            )}
           </div>
         </main>
       </div>

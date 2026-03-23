@@ -466,12 +466,12 @@ function InventoryHistoryDialog({ adjustments, ingredients, users, onClose }: In
         </DialogHeader>
         
         {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-2 border-b border-border">
-          <div>
+        <div className="flex flex-wrap gap-2 pb-2 border-b border-border">
+          <div className="flex-1 min-w-[130px]">
             <Label className="text-[10px] text-muted-foreground">Mes</Label>
             <Select value={filterMonth} onValueChange={setFilterMonth}>
               <SelectTrigger className="h-8 text-xs">
-                <Calendar className="h-3 w-3 mr-1" />
+                <Calendar className="h-3 w-3 mr-1 shrink-0" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -483,12 +483,12 @@ function InventoryHistoryDialog({ adjustments, ingredients, users, onClose }: In
               </SelectContent>
             </Select>
           </div>
-          
-          <div>
+
+          <div className="flex-1 min-w-[100px]">
             <Label className="text-[10px] text-muted-foreground">Tipo</Label>
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="h-8 text-xs">
-                <Filter className="h-3 w-3 mr-1" />
+                <Filter className="h-3 w-3 mr-1 shrink-0" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -500,8 +500,8 @@ function InventoryHistoryDialog({ adjustments, ingredients, users, onClose }: In
               </SelectContent>
             </Select>
           </div>
-          
-          <div>
+
+          <div className="flex-1 min-w-[120px]">
             <Label className="text-[10px] text-muted-foreground">Ingrediente</Label>
             <Select value={filterIngredient} onValueChange={setFilterIngredient}>
               <SelectTrigger className="h-8 text-xs">

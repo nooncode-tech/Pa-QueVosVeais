@@ -2,9 +2,10 @@
 
 import React from "react"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
+import { Eye, EyeOff, LogIn, AlertCircle, Settings2 } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +24,14 @@ export function LoginScreen({ onLoginSuccess, onClienteAccess }: LoginScreenProp
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [needsSetup, setNeedsSetup] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/setup')
+      .then(r => r.json())
+      .then((data: { needsSetup: boolean }) => setNeedsSetup(data.needsSetup))
+      .catch(() => {})
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -168,7 +177,18 @@ export function LoginScreen({ onLoginSuccess, onClienteAccess }: LoginScreenProp
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border py-3">
+      <footer className="border-t border-border py-3 space-y-1">
+        {needsSetup && (
+          <p className="text-center">
+            <Link
+              href="/setup"
+              className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium"
+            >
+              <Settings2 className="h-3 w-3" />
+              Primera vez? Configura el administrador
+            </Link>
+          </p>
+        )}
         <p className="text-center text-[10px] text-muted-foreground">
           CDMX - Sistema de gestión de pedidos v2.0
         </p>

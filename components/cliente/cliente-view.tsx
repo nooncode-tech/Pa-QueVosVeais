@@ -78,7 +78,6 @@ function FeedbackScreen({ onFinish }: { onFinish: () => void }) {
 ======================= */
 export function ClienteView({ mesa, onBack }: ClienteViewProps) {
   const {
-    orders,
     cart,
     tableSessions,
     createTableSession,
@@ -135,8 +134,8 @@ export function ClienteView({ mesa, onBack }: ClienteViewProps) {
   /* =======================
      DERIVED STATE
   ======================= */
-  const tableOrders = orders.filter(
-    o => o.mesa === mesa && o.status !== 'entregado' && o.status !== 'cancelado'
+  const tableOrders = (session?.orders ?? []).filter(
+    o => o.status !== 'entregado' && o.status !== 'cancelado'
   )
 
   const canOrder = !session || session.billStatus === 'abierta'

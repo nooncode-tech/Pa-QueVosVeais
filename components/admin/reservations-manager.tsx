@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Phone, Users, Calendar, Clock, X, Check, Edit2, Trash2 } from 'lucide-react'
+import { Plus, Search, Phone, Users, Calendar, Clock, X, Check, Edit2, Trash2, TableIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
+import { useApp } from '@/lib/context'
 
 interface Reservacion {
   id: string
@@ -43,8 +44,10 @@ const EMPTY_FORM = {
 }
 
 export function ReservationsManager() {
+  const { createTableSession, getTableSession } = useApp()
   const [reservaciones, setReservaciones] = useState<Reservacion[]>([])
   const [loading, setLoading] = useState(true)
+  const [openingMesa, setOpeningMesa] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterFecha, setFilterFecha] = useState(new Date().toISOString().split('T')[0])
   const [showForm, setShowForm] = useState(false)
@@ -128,6 +131,24 @@ export function ReservationsManager() {
   const handleStatusChange = async (id: string, status: Reservacion['status']) => {
     await supabase.from('reservaciones').update({ status }).eq('id', id)
     loadReservaciones()
+  }
+
+  const handleAbrirMesa = async (r: Reservacion) => {
+    if (!r.mesa) { alert('Esta reservación no tiene mesa asignada. Edítala y asigna una.'); return }
+    setOpeningMesa(r.id)
+    const existing = getTableSession(r.mesa)
+    if (existing) {
+      alert(`La mesa ${r.mesa} ya tiene una sesión activa (sesión ${existing.id.slice(0, 8)}).`)
+      setOpeningMesa(null)
+      return
+    }
+    createTableSession(r.mesa)
+    // Mark as llegaron if not already
+    if (r.status !== 'llegaron') {
+      await supabase.from('reservaciones').update({ status: 'llegaron' }).eq('id', r.id)
+      loadReservaciones()
+    }
+    setOpeningMesa(null)
   }
 
   const filtered = reservaciones.filter(r => {
@@ -292,6 +313,16 @@ export function ReservationsManager() {
                     {r.notas && <p className="text-[11px] text-muted-foreground mt-1 italic">{r.notas}</p>}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {(r.status === 'confirmada' || r.status === 'llegaron') && r.mesa && (
+                      <button
+                        onClick={() => handleAbrirMesa(r)}
+                        disabled={openingMesa === r.id}
+                        className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                        title="Abrir sesión de mesa"
+                      >
+                        <TableIcon className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     {r.status === 'confirmada' && (
                       <button
                         onClick={() => handleStatusChange(r.id, 'llegaron')}

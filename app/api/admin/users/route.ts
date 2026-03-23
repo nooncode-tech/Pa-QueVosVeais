@@ -106,11 +106,16 @@ export async function PUT(req: NextRequest) {
   if (updates.role !== undefined) profileUpdates.role = updates.role
   if (updates.activo !== undefined) profileUpdates.activo = updates.activo
 
-  // When role changes, also update user_metadata so JWT stays in sync
-  if (updates.role !== undefined) {
-    await supabaseAdmin.auth.admin.updateUserById(userId, {
-      user_metadata: { role: updates.role },
-    })
+  // Handle auth-level updates (password + role metadata)
+  const authUpdates: Record<string, unknown> = {}
+  if (updates.password) authUpdates.password = updates.password
+  if (updates.role !== undefined) authUpdates.user_metadata = { role: updates.role }
+
+  if (Object.keys(authUpdates).length > 0) {
+    const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdates)
+    if (authErr) {
+      return NextResponse.json({ error: authErr.message }, { status: 400 })
+    }
   }
 
   const { data: profile, error } = await supabaseAdmin

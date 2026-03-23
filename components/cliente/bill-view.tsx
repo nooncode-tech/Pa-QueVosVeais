@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, Gift, Bell, Check, Loader2 } from 'lucide-react'
+import { ChevronLeft, Gift, Bell, Check, Loader2, FileText } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { formatPrice } from '@/lib/store'
+import { FacturaDialog } from './factura-dialog'
 
 interface BillViewProps {
   sessionId: string
@@ -67,6 +68,7 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
     setBillLoading(false)
   }
 
+  const [showFactura, setShowFactura] = useState(false)
   const isPaid = session.paymentStatus === 'pagado'
   const isPending = session.paymentStatus === 'pendiente' && !billRequested && !hasPendingBillCall
   const isWaiting = billRequested || hasPendingBillCall
@@ -211,12 +213,21 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
           </div>
 
           {isPaid ? (
-            <div className="text-center py-3 bg-emerald-50 rounded-xl">
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <Check className="h-4 w-4 text-emerald-600" />
-                <p className="text-sm font-medium text-emerald-700">Cuenta pagada</p>
+            <div className="space-y-2">
+              <div className="text-center py-3 bg-emerald-50 rounded-xl">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Check className="h-4 w-4 text-emerald-600" />
+                  <p className="text-sm font-medium text-emerald-700">Cuenta pagada</p>
+                </div>
+                <p className="text-[11px] text-emerald-600">Gracias por tu visita</p>
               </div>
-              <p className="text-[11px] text-emerald-600">Gracias por tu visita</p>
+              <button
+                onClick={() => setShowFactura(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 border border-border rounded-xl text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
+              >
+                <FileText className="h-4 w-4" />
+                Solicitar factura (CFDI)
+              </button>
             </div>
           ) : isWaiting ? (
             <div className="text-center py-3 bg-amber-50 rounded-xl">
@@ -241,6 +252,15 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
             </Button>
           )}
         </div>
+      )}
+
+      {showFactura && (
+        <FacturaDialog
+          sessionId={sessionId}
+          mesa={mesa}
+          total={session.total}
+          onClose={() => setShowFactura(false)}
+        />
       )}
     </div>
   )

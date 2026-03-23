@@ -240,6 +240,7 @@ export interface AppConfig {
   }
   sonidoNuevosPedidos: boolean
   notificacionesStockBajo: boolean
+  autoPrintComanda: boolean
 }
 
 // ============ QR TOKENS ============
@@ -638,6 +639,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   sonidoNuevosPedidos: true,
   notificacionesStockBajo: true,
+  autoPrintComanda: false,
 }
 
 // Funciones de utilidad

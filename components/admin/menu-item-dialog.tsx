@@ -30,6 +30,9 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const [receta, setReceta] = useState<RecipeIngredient[]>(item?.receta || [])
   const [gruposModificadores, setGruposModificadores] = useState<ModifierGroup[]>(item?.gruposModificadores || [])
   const [etiquetas, setEtiquetas] = useState<EtiquetaItem[]>(item?.etiquetas || [])
+  const [horarioActivo, setHorarioActivo] = useState(!!item?.horarioDisponible)
+  const [horarioInicio, setHorarioInicio] = useState(item?.horarioDisponible?.inicio || '08:00')
+  const [horarioFin, setHorarioFin] = useState(item?.horarioDisponible?.fin || '22:00')
   
   // For new extra
   const [newExtraName, setNewExtraName] = useState('')
@@ -93,6 +96,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
       gruposModificadores: gruposModificadores.length > 0 ? gruposModificadores : undefined,
       etiquetas: etiquetas.length > 0 ? etiquetas : undefined,
       disponible: item?.disponible ?? true,
+      horarioDisponible: horarioActivo ? { inicio: horarioInicio, fin: horarioFin } : undefined,
     }
     
     if (item) {
@@ -227,6 +231,35 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
             </Select>
           </div>
           
+          {/* Horario disponible */}
+          <div className="border-t border-border pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <Label className="text-xs">Horario de disponibilidad</Label>
+                <p className="text-[10px] text-muted-foreground">Sólo aparece en el menú durante este rango</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHorarioActivo(v => !v)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${horarioActivo ? 'bg-primary' : 'bg-muted'}`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${horarioActivo ? 'translate-x-4' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            {horarioActivo && (
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Label className="text-[10px]">Desde</Label>
+                  <Input type="time" value={horarioInicio} onChange={e => setHorarioInicio(e.target.value)} className="h-7 text-xs" />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-[10px]">Hasta</Label>
+                  <Input type="time" value={horarioFin} onChange={e => setHorarioFin(e.target.value)} className="h-7 text-xs" />
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Extras / Adicionales */}
           <div className="border-t border-border pt-3">
             <Label className="text-xs">Adicionales / Extras</Label>

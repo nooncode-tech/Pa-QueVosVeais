@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { toast } from '@/components/ui/use-toast'
 import { supabase } from "./supabase"
+import { queueOrder, getPendingOrders, removePendingOrder } from './offline-queue'
+import { autoPrintKitchenTicket } from './print-utils'
 import {
   type Order,
   type OrderItem,
@@ -216,6 +218,9 @@ function mapMenuItem(row: Record<string, unknown>): MenuItem {
     extras: (row.extras as MenuItem['extras']) ?? [],
     gruposModificadores: (row.grupos_modificadores as MenuItem['gruposModificadores']) ?? [],
     etiquetas: (row.etiquetas as MenuItem['etiquetas']) ?? [],
+    horarioDisponible: row.horario_disponible
+      ? (row.horario_disponible as { inicio: string; fin: string })
+      : undefined,
   }
 }
 
@@ -531,6 +536,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         metodospagoActivos: (data.metodos_pago_activos as AppConfig['metodospagoActivos']) ?? { efectivo: true, tarjeta: true, transferencia: true },
         sonidoNuevosPedidos: data.sonido_nuevos_pedidos as boolean ?? true,
         notificacionesStockBajo: data.notificaciones_stock_bajo as boolean ?? true,
+        autoPrintComanda: (data.auto_print_comanda as boolean) ?? false,
       }
       setState(prev => ({ ...prev, config }))
     }
@@ -693,10 +699,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 }, [])
 
+  // ── Offline queue sync: retry pending orders when back online ───────────────
+  useEffect(() => {
+    const syncOfflineQueue = async () => {
+      const pending = await getPendingOrders()
+      for (const item of pending) {
+        const { error } = await supabase.rpc('create_order_atomic', item.payload as Record<string, unknown>)
+        if (!error) {
+          await removePendingOrder(item.id)
+        }
+      }
+      if (pending.length > 0) {
+        toast({ title: 'Pedidos sincronizados', description: `${pending.length} pedido(s) offline sincronizado(s).` })
+      }
+    }
+    window.addEventListener('online', syncOfflineQueue)
+    return () => window.removeEventListener('online', syncOfflineQueue)
+  }, [])
+
   // ── Supabase Realtime ───────────────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase
-      .channel('db-changes')
+      .channel(`db-changes-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'menu_items' }, (payload) => {
         const item = mapMenuItem(payload.new as Record<string, unknown>)
         setState(prev => ({
@@ -739,11 +763,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         const order = mapOrder(payload.new as Record<string, unknown>)
         setState(prev => {
-          if (prev.orders.some(o => o.id === order.id)) {
-            return { ...prev, orders: prev.orders.map(o => o.id === order.id ? order : o) }
-          }
-          if (prev.config.sonidoNuevosPedidos) playNewOrderSound()
-          return { ...prev, orders: [...prev.orders, order] }
+          const alreadyExists = prev.orders.some(o => o.id === order.id)
+          const updatedOrders = alreadyExists
+            ? prev.orders.map(o => o.id === order.id ? order : o)
+            : [...prev.orders, order]
+          if (!alreadyExists && prev.config.sonidoNuevosPedidos) playNewOrderSound()
+          // Also sync into the matching active session's orders array
+          const updatedSessions = order.mesa
+            ? prev.tableSessions.map(s =>
+                s.mesa === order.mesa && s.activa
+                  ? s.orders.some(o => o.id === order.id)
+                    ? { ...s, orders: s.orders.map(o => o.id === order.id ? order : o) }
+                    : { ...s, orders: [...s.orders, order] }
+                  : s
+              )
+            : prev.tableSessions
+          return { ...prev, orders: updatedOrders, tableSessions: updatedSessions }
         })
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
@@ -826,6 +861,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           metodospagoActivos: (row.metodos_pago_activos as AppConfig['metodospagoActivos']) ?? { efectivo: true, tarjeta: true, transferencia: true },
           sonidoNuevosPedidos: (row.sonido_nuevos_pedidos as boolean) ?? true,
           notificacionesStockBajo: (row.notificaciones_stock_bajo as boolean) ?? true,
+          autoPrintComanda: (row.auto_print_comanda as boolean) ?? false,
         }
         setState(prev => ({ ...prev, config }))
       })
@@ -1282,37 +1318,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     // Persist order + deduct ingredients in a single atomic transaction
+    const orderPayload = {
+      id: order.id,
+      numero: order.numero,
+      canal: order.canal,
+      mesa: order.mesa ?? null,
+      items: order.items,
+      status: order.status,
+      cocina_a_status: order.cocinaAStatus,
+      cocina_b_status: order.cocinaBStatus,
+      nombre_cliente: order.nombreCliente ?? null,
+      telefono: order.telefono ?? null,
+      direccion: order.direccion ?? null,
+      zona_reparto: order.zonaReparto ?? null,
+      costo_envio: order.costoEnvio ?? 0,
+      session_id: sessionSyncRef.data?.id ?? null,
+      created_at: order.createdAt.toISOString(),
+    }
     supabase.rpc('create_order_atomic', {
-      p_order: {
-        id: order.id,
-        numero: order.numero,
-        canal: order.canal,
-        mesa: order.mesa ?? null,
-        items: order.items,
-        status: order.status,
-        cocina_a_status: order.cocinaAStatus,
-        cocina_b_status: order.cocinaBStatus,
-        nombre_cliente: order.nombreCliente ?? null,
-        telefono: order.telefono ?? null,
-        direccion: order.direccion ?? null,
-        zona_reparto: order.zonaReparto ?? null,
-        costo_envio: order.costoEnvio ?? 0,
-        session_id: sessionSyncRef.data?.id ?? null,
-        created_at: order.createdAt.toISOString(),
-      },
+      p_order: orderPayload,
       p_deductions: deductions,
     }).then(({ error }) => {
       if (error) {
         logger.error('Error guardando pedido en Supabase:', error)
-        toast({ title: 'Error al guardar pedido', description: 'El pedido se registró localmente pero no se pudo sincronizar.', variant: 'destructive' })
+        // Save to offline queue for later sync
+        queueOrder({ id: order.id, payload: { p_order: orderPayload, p_deductions: deductions }, createdAt: order.createdAt.toISOString(), retries: 0 })
+        toast({ title: 'Sin conexión', description: 'El pedido se guardó localmente y se sincronizará cuando haya red.', variant: 'destructive' })
+      } else if ((canal === 'delivery' || canal === 'para_llevar') && order.nombreCliente) {
+        // CRM: upsert client info from delivery/para_llevar orders
+        const subtotal = order.items.reduce((sum, item) => {
+          const extrasTotal = item.extras?.reduce((e, ex) => e + ex.precio, 0) || 0
+          return sum + (item.menuItem.precio + extrasTotal) * item.cantidad
+        }, 0)
+        const orderTotal = subtotal + (order.costoEnvio ?? 0)
+        supabase.rpc('upsert_cliente', {
+          p_nombre: order.nombreCliente,
+          p_telefono: order.telefono ?? null,
+          p_direccion: order.direccion ?? null,
+          p_zona: order.zonaReparto ?? null,
+          p_total: orderTotal,
+          p_fecha: order.createdAt.toISOString(),
+        }).then(({ error: crmErr }) => {
+          if (crmErr) logger.error('CRM upsert error:', crmErr)
+        })
       }
     })
 
     const canalLabel = order.canal === 'mesa' ? `Mesa ${order.mesa}` : order.canal === 'delivery' ? `Delivery ${order.nombreCliente || ''}` : 'Para llevar'
     logAction('crear_pedido', `Pedido #${order.numero} - ${canalLabel} - ${order.items.length} items`, 'order', order.id)
 
+    // Auto-print kitchen ticket if enabled in config
+    if (state.config.autoPrintComanda) {
+      autoPrintKitchenTicket(order)
+    }
+
     return order
-  }, [state.cart, state.ingredients, state.config.impuestoPorcentaje, state.config.tiempoExpiracionSesionMinutos, logAction])
+  }, [state.cart, state.ingredients, state.config.impuestoPorcentaje, state.config.tiempoExpiracionSesionMinutos, state.config.autoPrintComanda, logAction])
   
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
     const now = new Date()
@@ -1621,9 +1682,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const confirmPayment = useCallback((sessionId: string) => {
+    let mesaNumber: number | undefined
     setState(prev => {
       const session = prev.tableSessions.find(s => s.id === sessionId)
       if (!session) return prev
+      mesaNumber = session.mesa
       return {
         ...prev,
         tableSessions: prev.tableSessions.filter(s => s.id !== sessionId),
@@ -1637,7 +1700,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cart: prev.currentTable === session.mesa ? [] : prev.cart,
       }
     })
-    // Mark session as paid in DB (keep for history, just mark it)
+    // Mark session as paid in DB
     supabase.from('table_sessions').update({
       activa: false,
       bill_status: 'pagada',
@@ -1646,6 +1709,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }).eq('id', sessionId).then(({ error }) => {
       if (error) { logger.error('Error confirmando pago:', error); toast({ title: 'Error al confirmar pago', description: 'El pago no se pudo registrar en la base de datos.', variant: 'destructive' }) }
     })
+    // Mark all active orders at this table as 'entregado' so new customers get a clean slate
+    if (mesaNumber !== undefined) {
+      supabase.from('orders')
+        .update({ status: 'entregado' })
+        .eq('mesa', mesaNumber)
+        .not('status', 'in', '("entregado","cancelado")')
+        .then(({ error }) => {
+          if (error) logger.error('Error marcando órdenes como entregadas:', error)
+        })
+    }
     logAction('confirmar_pago', `Pago confirmado`, 'session', sessionId)
   }, [logAction])
 
@@ -1926,6 +1999,7 @@ const resetSessionPaymentStatus = useCallback((sessionId: string) => {
     if (updates.gruposModificadores !== undefined) payload.grupos_modificadores = updates.gruposModificadores
     if (updates.etiquetas !== undefined) payload.etiquetas = updates.etiquetas
     if (imageUrl !== undefined) payload.image = imageUrl
+    if ('horarioDisponible' in updates) payload.horario_disponible = updates.horarioDisponible ?? null
 
     const { error } = await supabase
       .from("menu_items")
@@ -1975,6 +2049,7 @@ const addMenuItem = useCallback(
           extras: item.extras ?? [],
           grupos_modificadores: item.gruposModificadores ?? [],
           etiquetas: item.etiquetas ?? [],
+          horario_disponible: item.horarioDisponible ?? null,
         }
       ])
       .select()
@@ -1986,16 +2061,7 @@ const addMenuItem = useCallback(
     }
 
     if (data) {
-      const nuevo: MenuItem = {
-        id: data[0].id,
-        nombre: data[0].name,
-        descripcion: data[0].description,
-        precio: Number(data[0].price),
-        categoria: data[0].category_id,
-        disponible: data[0].available,
-        imagen: data[0].image ?? undefined,
-        cocina: "cocina_a"
-      }
+      const nuevo = mapMenuItem(data[0] as Record<string, unknown>)
 
       setState(prev => ({
         ...prev,
@@ -2029,8 +2095,25 @@ const addMenuItem = useCallback(
 }, [logAction])
   
   const getAvailableMenuItems = useCallback((): MenuItem[] => {
+    const now = new Date()
+    const currentHHMM = now.getHours() * 60 + now.getMinutes()
+
     return state.menuItems.filter(item => {
       if (!item.disponible) return false
+      // Check time-based availability window
+      if (item.horarioDisponible) {
+        const [startH, startM] = item.horarioDisponible.inicio.split(':').map(Number)
+        const [endH, endM] = item.horarioDisponible.fin.split(':').map(Number)
+        const startMins = startH * 60 + startM
+        const endMins = endH * 60 + endM
+        if (endMins > startMins) {
+          // Normal window, e.g. 08:00–12:00
+          if (currentHHMM < startMins || currentHHMM > endMins) return false
+        } else {
+          // Overnight window, e.g. 22:00–02:00
+          if (currentHHMM < startMins && currentHHMM > endMins) return false
+        }
+      }
       const { canPrepare } = canPrepareItem(item, state.ingredients)
       return canPrepare
     })
@@ -2334,6 +2417,7 @@ const addMenuItem = useCallback(
     if (updates.metodospagoActivos !== undefined) payload.metodos_pago_activos = updates.metodospagoActivos
     if (updates.sonidoNuevosPedidos !== undefined) payload.sonido_nuevos_pedidos = updates.sonidoNuevosPedidos
     if (updates.notificacionesStockBajo !== undefined) payload.notificaciones_stock_bajo = updates.notificacionesStockBajo
+    if (updates.autoPrintComanda !== undefined) payload.auto_print_comanda = updates.autoPrintComanda
     supabase.from('app_config').update(payload).eq('id', 'default').then(({ error }) => {
       if (error) logger.error('Error guardando configuración:', error)
     })

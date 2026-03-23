@@ -1,9 +1,10 @@
 'use client'
 
 import React from "react"
-import { useState } from 'react'
-import { LayoutGrid, Package, Bell, LogOut, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { LayoutGrid, Package, Bell, LogOut, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { useApp } from '@/lib/context'
+import { supabase } from '@/lib/supabase'
 import { TablesGrid } from './tables-grid'
 import { TableSession } from './table-session'
 import { DeliveryBoard } from './delivery-board'
@@ -27,10 +28,32 @@ interface MeseroViewProps {
 }
 
 export function MeseroView({ onBack }: MeseroViewProps) {
-  const { getPendingCalls, orders } = useApp()
+  const { getPendingCalls, orders, currentUser } = useApp()
   const [screen, setScreen] = useState<MeseroScreen>('tables')
   const [selectedTable, setSelectedTable] = useState<number | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [openTurnoId, setOpenTurnoId] = useState<string | null>(null)
+  const [turnoLoading, setTurnoLoading] = useState(false)
+
+  // Check if employee has an open shift today
+  useEffect(() => {
+    if (!currentUser) return
+    supabase.from('turnos').select('id').eq('user_id', currentUser.id).is('clock_out', null).maybeSingle()
+      .then(({ data }) => setOpenTurnoId(data?.id ?? null))
+  }, [currentUser])
+
+  const handleClockToggle = async () => {
+    if (!currentUser) return
+    setTurnoLoading(true)
+    if (openTurnoId) {
+      await supabase.from('turnos').update({ clock_out: new Date().toISOString() }).eq('id', openTurnoId)
+      setOpenTurnoId(null)
+    } else {
+      const { data } = await supabase.from('turnos').insert({ user_id: currentUser.id, clock_in: new Date().toISOString() }).select('id').single()
+      setOpenTurnoId(data?.id ?? null)
+    }
+    setTurnoLoading(false)
+  }
   
   const pendingCallsCount = getPendingCalls().length
   
@@ -97,6 +120,21 @@ export function MeseroView({ onBack }: MeseroViewProps) {
                 Mesero
               </h1>
             </div>
+            {currentUser && (
+              <button
+                onClick={handleClockToggle}
+                disabled={turnoLoading}
+                className={`ml-auto flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
+                  openTurnoId
+                    ? 'bg-green-500/20 text-green-100 border border-green-400/30'
+                    : 'bg-primary-foreground/10 text-primary-foreground'
+                }`}
+                title={openTurnoId ? 'Registrar salida' : 'Registrar entrada'}
+              >
+                <Clock className="h-3 w-3" />
+                {openTurnoId ? 'En turno' : 'Entrada'}
+              </button>
+            )}
           </div>
           
           {/* Navigation Tabs - Scrollable on mobile */}

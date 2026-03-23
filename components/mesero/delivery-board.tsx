@@ -1,17 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Clock, Package, MapPin, Phone, Truck, ShoppingBag, AlertCircle, Plus } from 'lucide-react'
+import { Check, Clock, Package, MapPin, Phone, Truck, ShoppingBag, AlertCircle, Plus, User } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatPrice, formatTime, getChannelLabel, getStatusLabel, getTimeDiff, type OrderStatus, type Channel } from '@/lib/store'
 import { CreateOrderDialog } from '@/components/admin/create-order-dialog'
+import { sendWhatsApp, deliveryReadyMessage, pickupReadyMessage } from '@/lib/notify'
 
 export function DeliveryBoard() {
-  const { orders, updateOrderStatus } = useApp()
+  const { orders, updateOrderStatus, logAction } = useApp()
   const [newOrderChannel, setNewOrderChannel] = useState<Channel | null>(null)
+  const [repartidorInputs, setRepartidorInputs] = useState<Record<string, string>>({})
+  const [showRepartidorFor, setShowRepartidorFor] = useState<string | null>(null)
   
   // Get all orders that need delivery attention
   const pendingOrders = orders.filter(o => 
@@ -29,10 +33,21 @@ export function DeliveryBoard() {
   
   const handleMarkDelivered = (orderId: string) => {
     updateOrderStatus(orderId, 'entregado')
+    const order = orders.find(o => o.id === orderId)
+    if (order?.telefono && order.canal === 'para_llevar') {
+      sendWhatsApp(order.telefono, pickupReadyMessage(order.numero, order.nombreCliente ?? 'Cliente'))
+    }
   }
-  
+
   const handleMarkEnCamino = (orderId: string) => {
+    const repartidor = repartidorInputs[orderId]?.trim()
     updateOrderStatus(orderId, 'en_camino')
+    if (repartidor) logAction('en_camino', `Orden ${orderId} asignada a ${repartidor}`, 'order', orderId)
+    const order = orders.find(o => o.id === orderId)
+    if (order?.telefono) {
+      sendWhatsApp(order.telefono, deliveryReadyMessage(order.numero, order.nombreCliente ?? 'Cliente'))
+    }
+    setShowRepartidorFor(null)
   }
   
   const readyCount = pendingOrders.filter(o => o.status === 'listo').length
@@ -255,15 +270,31 @@ export function DeliveryBoard() {
                     {allKitchensReady && isReady && (
                       <div className="flex gap-1">
                         {order.canal === 'delivery' ? (
-                          <>
+                          showRepartidorFor === order.id ? (
+                            <div className="flex gap-1 w-full">
+                              <Input
+                                placeholder="Nombre repartidor"
+                                value={repartidorInputs[order.id] ?? ''}
+                                onChange={e => setRepartidorInputs(p => ({ ...p, [order.id]: e.target.value }))}
+                                className="h-7 text-xs flex-1"
+                                autoFocus
+                              />
+                              <Button
+                                className="bg-blue-500 hover:bg-blue-600 text-white h-7 text-xs px-2"
+                                onClick={() => handleMarkEnCamino(order.id)}
+                              >
+                                <Truck className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
                             <Button
                               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white h-7 text-xs"
-                              onClick={() => handleMarkEnCamino(order.id)}
+                              onClick={() => setShowRepartidorFor(order.id)}
                             >
-                              <Truck className="h-3 w-3 mr-1" />
-                              En camino
+                              <User className="h-3 w-3 mr-1" />
+                              Asignar repartidor
                             </Button>
-                          </>
+                          )
                         ) : (
                           <Button
                             className="w-full bg-success hover:bg-success/90 text-success-foreground h-7 text-xs"

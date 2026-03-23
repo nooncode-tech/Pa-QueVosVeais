@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle, Volume2, VolumeX, ChevronsLeft, ChevronsRight, Printer } from 'lucide-react'
+import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle, Volume2, VolumeX, ChevronsLeft, ChevronsRight, Printer, EyeOff } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,7 +53,7 @@ interface KDSViewProps {
 type KDSTab = 'queue' | 'preparing' | 'ready'
 
 export function KDSView({ kitchen, onBack }: KDSViewProps) {
-  const { orders, updateKitchenStatus } = useApp()
+  const { orders, updateKitchenStatus, updateMenuItem } = useApp()
   const [currentTime, setCurrentTime] = useState(new Date())
   const [activeTab, setActiveTab] = useState<KDSTab>('queue')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -63,7 +63,8 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
   const isFirstLoad = useRef(true)
 
   useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 60000)
+    // Refresh every 30 seconds so timers stay accurate
+    const interval = setInterval(() => setCurrentTime(new Date()), 30_000)
     return () => clearInterval(interval)
   }, [])
   
@@ -140,6 +141,11 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
 
   const handleCompleteOrder = (orderId: string) => {
     updateKitchenStatus(orderId, kitchen, 'listo')
+  }
+
+  const handle86Item = (itemId: string) => {
+    if (!confirm('¿Marcar este platillo como no disponible (86)?')) return
+    updateMenuItem(itemId, { disponible: false })
   }
   
   const getOrderItems = (order: Order) => {
@@ -285,6 +291,7 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
               timeBgColor={getTimeBgColor(order.createdAt)}
               onStart={activeTab === 'queue' ? () => handleStartOrder(order.id) : undefined}
               onComplete={activeTab === 'preparing' ? () => handleCompleteOrder(order.id) : undefined}
+              on86Item={handle86Item}
               priorityIndex={activeTab === 'queue' ? index : undefined}
               isNew={newOrderIds.has(order.id)}
               large
@@ -572,12 +579,13 @@ interface OrderCardProps {
   timeBgColor?: string
   onStart?: () => void
   onComplete?: () => void
+  on86Item?: (menuItemId: string) => void
   priorityIndex?: number
   large?: boolean
   isNew?: boolean
 }
 
-function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onComplete, priorityIndex, large, isNew }: OrderCardProps) {
+function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onComplete, on86Item, priorityIndex, large, isNew }: OrderCardProps) {
   const handlePrintTicket = () => {
     const w = window.open('', '_blank', 'width=400,height=500')
     if (!w) return
@@ -699,6 +707,15 @@ function OrderCard({ order, items, status, timeColor, timeBgColor, onStart, onCo
                   </div>
                 )}
               </div>
+              {on86Item && large && (
+                <button
+                  onClick={() => on86Item(item.menuItem.id)}
+                  className="flex-shrink-0 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  title="86 — marcar como no disponible"
+                >
+                  <EyeOff className="h-3.5 w-3.5" />
+                </button>
+              )}
             </li>
           ))}
         </ul>

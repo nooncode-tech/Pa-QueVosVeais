@@ -20,6 +20,7 @@ All migrations live in `/supabase/*.sql`. They must be applied **in order** dire
 | 012 | `012_security_atomic_order.sql` | RLS hardening + create_order_atomic RPC | ⚠️ **PENDING** |
 | 013 | `013_modifier_groups.sql` | Add grupos_modificadores JSONB column to menu_items | ⚠️ **PENDING** |
 | 014 | `014_etiquetas_reservaciones.sql` | Add etiquetas (allergen tags) to menu_items + reservaciones table | ⚠️ **PENDING** |
+| 015 | `015_turnos_facturas_sucursales.sql` | turnos (employee shifts), solicitudes_factura (CFDI requests), sucursales (multi-location) | ⚠️ **PENDING** |
 
 ## How to apply a migration
 
