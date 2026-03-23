@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, Gift, Bell, Check, Loader2, FileText } from 'lucide-react'
+import { ChevronLeft, Gift, Bell, Check, Loader2, FileText, Tag } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { formatPrice } from '@/lib/store'
@@ -21,7 +21,11 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
     setTipAmount,
     createWaiterCall,
     waiterCalls,
+    getActivePromociones,
+    applyDiscount,
   } = useApp()
+
+  const activePromociones = getActivePromociones()
 
   const session = tableSessions.find(s => s.id === sessionId)
 
@@ -69,6 +73,18 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
   }
 
   const [showFactura, setShowFactura] = useState(false)
+  const [appliedPromoId, setAppliedPromoId] = useState<string | null>(null)
+
+  const handleApplyPromo = (promoId: string) => {
+    if (!session || appliedPromoId) return
+    const promo = activePromociones.find(p => p.id === promoId)
+    if (!promo) return
+    const descuento = promo.tipo === 'porcentaje'
+      ? session.subtotal * (promo.valor / 100)
+      : promo.valor
+    applyDiscount(sessionId, descuento, promo.titulo)
+    setAppliedPromoId(promoId)
+  }
   const isPaid = session.paymentStatus === 'pagado'
   const isPending = session.paymentStatus === 'pendiente' && !billRequested && !hasPendingBillCall
   const isWaiting = billRequested || hasPendingBillCall
@@ -142,6 +158,51 @@ export function BillView({ sessionId, mesa, onBack, onShowRewards }: BillViewPro
         ) : (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">No hay consumos aun</p>
+          </div>
+        )}
+
+        {/* Active Promotions */}
+        {isPending && session.orders.length > 0 && activePromociones.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              <Tag className="h-3.5 w-3.5 text-primary" />
+              Promociones disponibles
+            </p>
+            {activePromociones.map(promo => {
+              const isApplied = appliedPromoId === promo.id
+              const alreadyApplied = !!appliedPromoId
+              return (
+                <button
+                  key={promo.id}
+                  onClick={() => handleApplyPromo(promo.id)}
+                  disabled={alreadyApplied}
+                  className={`w-full flex items-start justify-between p-3 rounded-xl border transition-colors text-left ${
+                    isApplied
+                      ? 'bg-emerald-50 border-emerald-200'
+                      : alreadyApplied
+                      ? 'opacity-50 bg-secondary border-border cursor-not-allowed'
+                      : promo.color === 'green' ? 'bg-green-50 border-green-200 active:bg-green-100' :
+                        promo.color === 'blue' ? 'bg-blue-50 border-blue-200 active:bg-blue-100' :
+                        promo.color === 'red' ? 'bg-red-50 border-red-200 active:bg-red-100' :
+                        promo.color === 'purple' ? 'bg-purple-50 border-purple-200 active:bg-purple-100' :
+                        'bg-orange-50 border-orange-200 active:bg-orange-100'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <p className={`text-[13px] font-semibold ${isApplied ? 'text-emerald-700' : 'text-foreground'}`}>
+                      {promo.titulo}
+                    </p>
+                    {promo.descripcion && (
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{promo.descripcion}</p>
+                    )}
+                    <p className={`text-[11px] font-medium mt-0.5 ${isApplied ? 'text-emerald-600' : 'text-primary'}`}>
+                      {promo.tipo === 'porcentaje' ? `${promo.valor}% de descuento` : `${formatPrice(promo.valor)} de descuento`}
+                    </p>
+                  </div>
+                  {isApplied && <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />}
+                </button>
+              )
+            })}
           </div>
         )}
 

@@ -29,7 +29,8 @@ export function MenuView({
   onExit,
   canOrder = true,
 }: MenuViewProps) {
-  const { menuItems, ingredients, categories } = useApp()
+  const { menuItems, ingredients, categories, getActivePromociones } = useApp()
+  const activePromociones = getActivePromociones()
   const activeCategories = [...categories]
     .filter(c => c.activa)
     .sort((a, b) => a.orden - b.orden)
@@ -155,6 +156,30 @@ export function MenuView({
           </div>
         </div>
       </header>
+
+      {/* Promotions Banner */}
+      {activePromociones.length > 0 && (
+        <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto scrollbar-none">
+          {activePromociones.map(promo => (
+            <div
+              key={promo.id}
+              className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium ${
+                promo.color === 'green' ? 'bg-green-50 border-green-200 text-green-700' :
+                promo.color === 'blue' ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                promo.color === 'red' ? 'bg-red-50 border-red-200 text-red-700' :
+                promo.color === 'purple' ? 'bg-purple-50 border-purple-200 text-purple-700' :
+                'bg-orange-50 border-orange-200 text-orange-700'
+              }`}
+            >
+              <span>🏷️</span>
+              <div>
+                <p className="font-semibold leading-none">{promo.titulo}</p>
+                {promo.descripcion && <p className="opacity-80 mt-0.5 leading-none">{promo.descripcion}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Menu Items */}
       <main className="flex-1 px-4 pb-4">

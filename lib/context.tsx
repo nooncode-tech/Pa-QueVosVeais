@@ -31,6 +31,7 @@ import {
   type DeliveryZone,
   type MenuCategory,
   type TableConfig,
+  type Promocion,
   MENU_ITEMS,
   DEFAULT_INGREDIENTS,
   DEFAULT_USERS,
@@ -78,6 +79,7 @@ interface AppState {
   deliveryZones: DeliveryZone[]
   categories: MenuCategory[]
   tables: TableConfig[]
+  promociones: Promocion[]
   cart: OrderItem[]
   currentTable: number | null
   currentUser: User | null
@@ -182,6 +184,12 @@ interface AppContextType extends AppState {
   deleteDeliveryZone: (zonaNombre: string) => void
   calculateDeliveryCost: (zonaNombre: string) => number
   
+  // Promociones actions
+  getActivePromociones: () => Promocion[]
+  addPromocion: (promo: Omit<Promocion, 'id' | 'createdAt'>) => void
+  updatePromocion: (promoId: string, updates: Partial<Promocion>) => void
+  deletePromocion: (promoId: string) => void
+
   // Payment utility actions
   resetSessionPaymentStatus: (sessionId: string) => void
   markFeedbackDone: (sessionId: string) => void
@@ -328,6 +336,7 @@ function getDefaultState(): AppState {
     deliveryZones: DEFAULT_DELIVERY_ZONES,
     categories: DEFAULT_CATEGORIES,
     tables: DEFAULT_TABLES,
+    promociones: [],
     cart: [],
     currentTable: null,
     currentUser: null,
@@ -537,6 +546,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sonidoNuevosPedidos: data.sonido_nuevos_pedidos as boolean ?? true,
         notificacionesStockBajo: data.notificaciones_stock_bajo as boolean ?? true,
         autoPrintComanda: (data.auto_print_comanda as boolean) ?? false,
+        googleReviewUrl: (data.google_review_url as string) ?? '',
       }
       setState(prev => ({ ...prev, config }))
     }
@@ -696,6 +706,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   cargarAuditLogs()
   cargarDeliveryZones()
   cargarRewards()
+
+  const cargarPromociones = async () => {
+    const { data, error } = await supabase.from('promociones').select('*').order('created_at', { ascending: false })
+    if (error) { logger.error('Error cargando promociones:', error); return }
+    if (data) {
+      const promos: Promocion[] = data.map(row => ({
+        id: row.id as string,
+        titulo: row.titulo as string,
+        descripcion: row.descripcion as string,
+        tipo: row.tipo as Promocion['tipo'],
+        valor: Number(row.valor),
+        activa: row.activa as boolean,
+        fechaInicio: (row.fecha_inicio as string) ?? undefined,
+        fechaFin: (row.fecha_fin as string) ?? undefined,
+        color: (row.color as string) ?? 'orange',
+        createdAt: new Date(row.created_at as string),
+      }))
+      setState(prev => ({ ...prev, promociones: promos }))
+    }
+  }
+  cargarPromociones()
 
 }, [])
 
@@ -862,6 +893,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           sonidoNuevosPedidos: (row.sonido_nuevos_pedidos as boolean) ?? true,
           notificacionesStockBajo: (row.notificaciones_stock_bajo as boolean) ?? true,
           autoPrintComanda: (row.auto_print_comanda as boolean) ?? false,
+          googleReviewUrl: (row.google_review_url as string) ?? '',
         }
         setState(prev => ({ ...prev, config }))
       })
@@ -1035,6 +1067,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ? prev.inventoryAdjustments
             : [adj, ...prev.inventoryAdjustments],
         }))
+      })
+      // ── Promociones Realtime ──────────────────────────────────────────────────
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'promociones' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        const promo: Promocion = { id: row.id as string, titulo: row.titulo as string, descripcion: row.descripcion as string, tipo: row.tipo as Promocion['tipo'], valor: Number(row.valor), activa: row.activa as boolean, fechaInicio: (row.fecha_inicio as string) ?? undefined, fechaFin: (row.fecha_fin as string) ?? undefined, color: (row.color as string) ?? 'orange', createdAt: new Date(row.created_at as string) }
+        setState(prev => ({ ...prev, promociones: prev.promociones.some(p => p.id === promo.id) ? prev.promociones : [promo, ...prev.promociones] }))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'promociones' }, (payload) => {
+        const row = payload.new as Record<string, unknown>
+        setState(prev => ({ ...prev, promociones: prev.promociones.map(p => p.id === (row.id as string) ? { ...p, titulo: row.titulo as string, descripcion: row.descripcion as string, tipo: row.tipo as Promocion['tipo'], valor: Number(row.valor), activa: row.activa as boolean, fechaInicio: (row.fecha_inicio as string) ?? undefined, fechaFin: (row.fecha_fin as string) ?? undefined, color: (row.color as string) ?? 'orange' } : p) }))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'promociones' }, (payload) => {
+        const deletedId = (payload.old as Record<string, unknown>).id as string
+        setState(prev => ({ ...prev, promociones: prev.promociones.filter(p => p.id !== deletedId) }))
       })
       .subscribe()
 
@@ -2418,6 +2464,7 @@ const addMenuItem = useCallback(
     if (updates.sonidoNuevosPedidos !== undefined) payload.sonido_nuevos_pedidos = updates.sonidoNuevosPedidos
     if (updates.notificacionesStockBajo !== undefined) payload.notificaciones_stock_bajo = updates.notificacionesStockBajo
     if (updates.autoPrintComanda !== undefined) payload.auto_print_comanda = updates.autoPrintComanda
+    if (updates.googleReviewUrl !== undefined) payload.google_review_url = updates.googleReviewUrl
     supabase.from('app_config').update(payload).eq('id', 'default').then(({ error }) => {
       if (error) logger.error('Error guardando configuración:', error)
     })
@@ -2774,6 +2821,56 @@ const addMenuItem = useCallback(
     return getDeliveryZoneCost(zonaNombre, state.deliveryZones)
   }, [state.deliveryZones])
   
+  // ============ PROMOCIONES ACTIONS ============
+  const getActivePromociones = useCallback((): Promocion[] => {
+    const today = new Date().toISOString().split('T')[0]
+    return state.promociones.filter(p => {
+      if (!p.activa) return false
+      if (p.fechaInicio && today < p.fechaInicio) return false
+      if (p.fechaFin && today > p.fechaFin) return false
+      return true
+    })
+  }, [state.promociones])
+
+  const addPromocion = useCallback((promo: Omit<Promocion, 'id' | 'createdAt'>) => {
+    const id = generateId()
+    const now = new Date()
+    const newPromo: Promocion = { ...promo, id, createdAt: now }
+    setState(prev => ({ ...prev, promociones: [newPromo, ...prev.promociones] }))
+    supabase.from('promociones').insert({
+      id,
+      titulo: promo.titulo,
+      descripcion: promo.descripcion,
+      tipo: promo.tipo,
+      valor: promo.valor,
+      activa: promo.activa,
+      fecha_inicio: promo.fechaInicio ?? null,
+      fecha_fin: promo.fechaFin ?? null,
+      color: promo.color,
+    }).then(({ error }) => { if (error) logger.error('Error creando promocion:', error) })
+  }, [])
+
+  const updatePromocion = useCallback((promoId: string, updates: Partial<Promocion>) => {
+    setState(prev => ({ ...prev, promociones: prev.promociones.map(p => p.id === promoId ? { ...p, ...updates } : p) }))
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (updates.titulo !== undefined) payload.titulo = updates.titulo
+    if (updates.descripcion !== undefined) payload.descripcion = updates.descripcion
+    if (updates.tipo !== undefined) payload.tipo = updates.tipo
+    if (updates.valor !== undefined) payload.valor = updates.valor
+    if (updates.activa !== undefined) payload.activa = updates.activa
+    if (updates.fechaInicio !== undefined) payload.fecha_inicio = updates.fechaInicio ?? null
+    if (updates.fechaFin !== undefined) payload.fecha_fin = updates.fechaFin ?? null
+    if (updates.color !== undefined) payload.color = updates.color
+    supabase.from('promociones').update(payload).eq('id', promoId)
+      .then(({ error }) => { if (error) logger.error('Error actualizando promocion:', error) })
+  }, [])
+
+  const deletePromocion = useCallback((promoId: string) => {
+    setState(prev => ({ ...prev, promociones: prev.promociones.filter(p => p.id !== promoId) }))
+    supabase.from('promociones').delete().eq('id', promoId)
+      .then(({ error }) => { if (error) logger.error('Error eliminando promocion:', error) })
+  }, [])
+
   // ============ UTILITY FUNCTIONS ============
   const getOrdersForKitchen = useCallback((kitchen: 'a' | 'b'): Order[] => {
     return state.orders.filter(order => {
@@ -2891,6 +2988,10 @@ const addMenuItem = useCallback(
     markFeedbackDone,
   emergencyCloseAllTables,
   emergencyCloseTables,
+  getActivePromociones,
+  addPromocion,
+  updatePromocion,
+  deletePromocion,
   }
   
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

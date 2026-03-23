@@ -17,8 +17,6 @@ import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 
-const GOOGLE_REVIEW_URL = 'https://www.google.com/maps/place/Pa+que+vos+Veais+RESTAURANTE/@19.3719375,-99.1348876,17z/data=!4m8!3m7!1s0x85d1ff5317a00b69:0x83f28a77607266ae!8m2!3d19.3719325!4d-99.1323127!9m1!1b1!16s%2Fg%2F11lzpgjmdd?entry=ttu&g_ep=EgoyMDI2MDIxMS4wIKXMDSoASAFQAw%3D%3D'
-
 /* =======================
    TYPES
 ======================= */
@@ -32,7 +30,7 @@ interface ClienteViewProps {
 /* =======================
    FEEDBACK SCREEN
 ======================= */
-function FeedbackScreen({ onFinish }: { onFinish: () => void }) {
+function FeedbackScreen({ onFinish, googleReviewUrl }: { onFinish: () => void; googleReviewUrl: string }) {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center space-y-6">
@@ -51,7 +49,7 @@ function FeedbackScreen({ onFinish }: { onFinish: () => void }) {
 
         <Button
           className="w-full bg-foreground text-background flex items-center justify-center gap-2 h-12 text-sm font-semibold rounded-xl"
-          onClick={() => window.open(GOOGLE_REVIEW_URL, '_blank')}
+          onClick={() => googleReviewUrl && window.open(googleReviewUrl, '_blank')}
         >
           <ExternalLink className="h-4 w-4" />
           Dejar una resena en Google
@@ -83,6 +81,7 @@ export function ClienteView({ mesa, onBack }: ClienteViewProps) {
     createTableSession,
     getTableSession,
     waiterCalls,
+    config,
   } = useApp()
 
   const [screen, setScreen] = useState<ClienteScreen>('menu')
@@ -167,7 +166,7 @@ export function ClienteView({ mesa, onBack }: ClienteViewProps) {
   const renderScreen = () => {
     switch (screen) {
       case 'feedback':
-        return <FeedbackScreen onFinish={handleFinishFeedback} />
+        return <FeedbackScreen onFinish={handleFinishFeedback} googleReviewUrl={config.googleReviewUrl} />
 
       case 'item':
         return selectedItem ? (

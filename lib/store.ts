@@ -225,6 +225,20 @@ export interface AppliedReward {
   createdAt: Date
 }
 
+// ============ PROMOCIONES ============
+export interface Promocion {
+  id: string
+  titulo: string
+  descripcion: string
+  tipo: 'porcentaje' | 'monto_fijo'
+  valor: number
+  activa: boolean
+  fechaInicio?: string
+  fechaFin?: string
+  color: string
+  createdAt: Date
+}
+
 // ============ CONFIGURACIÓN ============
 export interface AppConfig {
   impuestoPorcentaje: number
@@ -241,6 +255,7 @@ export interface AppConfig {
   sonidoNuevosPedidos: boolean
   notificacionesStockBajo: boolean
   autoPrintComanda: boolean
+  googleReviewUrl: string
 }
 
 // ============ QR TOKENS ============
@@ -640,6 +655,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   sonidoNuevosPedidos: true,
   notificacionesStockBajo: true,
   autoPrintComanda: false,
+  googleReviewUrl: '',
 }
 
 // Funciones de utilidad

@@ -51,15 +51,16 @@ import { TableHistory } from './table-history'
 import { AuditLogViewer } from './audit-log-viewer'
 import { OrdersHistory } from './orders-history'
 import { RewardsManager } from './rewards-manager'
+import { PromocionesManager } from './promociones-manager'
 import { ReservationsManager } from './reservations-manager'
 import { ShiftsManager } from './shifts-manager'
 import { FacturasManager } from './facturas-manager'
 import { SucursalesManager } from './sucursales-manager'
 import { CrmManager } from './crm-manager'
 import { useApp } from '@/lib/context'
-import { CalendarDays, Clock4, FileText, Building2, Contact } from 'lucide-react'
+import { CalendarDays, Clock4, FileText, Building2, Contact, Tag } from 'lucide-react'
 
-type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history' | 'rewards' | 'reservations' | 'shifts' | 'facturas' | 'sucursales' | 'crm'
+type AdminScreen = 'reports' | 'menu' | 'orders' | 'inventory' | 'users' | 'config' | 'qr' | 'delivery' | 'refunds' | 'closing' | 'history' | 'audit' | 'orders-history' | 'rewards' | 'promociones' | 'reservations' | 'shifts' | 'facturas' | 'sucursales' | 'crm'
 
 interface AdminViewProps {
   onBack: () => void
@@ -106,6 +107,7 @@ export function AdminView({ onBack }: AdminViewProps) {
         { id: 'inventory', label: 'Inventario', icon: <Archive className="h-5 w-5" /> },
         { id: 'delivery', label: 'Zonas de Entrega', icon: <Truck className="h-5 w-5" /> },
         { id: 'rewards', label: 'Recompensas', icon: <Star className="h-5 w-5" /> },
+        { id: 'promociones', label: 'Promociones', icon: <Tag className="h-5 w-5" /> },
         { id: 'refunds', label: 'Reembolsos', icon: <RotateCcw className="h-5 w-5" />, badge: pendingRefundsCount > 0 ? pendingRefundsCount : undefined },
         { id: 'reservations', label: 'Reservaciones', icon: <CalendarDays className="h-5 w-5" /> },
         { id: 'shifts', label: 'Turnos', icon: <Clock4 className="h-5 w-5" /> },
@@ -205,6 +207,7 @@ export function AdminView({ onBack }: AdminViewProps) {
           {screen === 'inventory' && <InventoryManager />}
           {screen === 'delivery' && <DeliveryZonesManager />}
           {screen === 'rewards' && <RewardsManager />}
+          {screen === 'promociones' && <PromocionesManager />}
           {screen === 'refunds' && <RefundsManager />}
           {screen === 'qr' && <QRManager />}
           {screen === 'history' && <TableHistory />}
@@ -453,6 +456,7 @@ export function AdminView({ onBack }: AdminViewProps) {
             {screen === 'inventory' && <InventoryManager />}
             {screen === 'delivery' && <DeliveryZonesManager />}
             {screen === 'rewards' && <RewardsManager />}
+            {screen === 'promociones' && <PromocionesManager />}
             {screen === 'refunds' && <RefundsManager />}
             {screen === 'qr' && <QRManager />}
             {screen === 'history' && <TableHistory />}
