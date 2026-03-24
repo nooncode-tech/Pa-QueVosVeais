@@ -263,38 +263,48 @@ export function AdminView({ onBack }: AdminViewProps) {
           {/* Logo / Brand */}
           <div className="flex h-16 items-center border-b border-border px-3">
             {!sidebarCollapsed ? (
-              <div className="flex items-center gap-3 flex-1">
-                <div className="relative h-10 w-10 shrink-0">
-                  <Image 
-                    src="/logo.png" 
-                    alt="Pa' Que Vos Veais" 
-                    fill
-                    className="object-contain" 
-                    priority 
-                  />
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="relative h-9 w-9 shrink-0">
+                  <Image src="/logo.png" alt="Pa' Que Vos Veais" fill className="object-contain" priority />
                 </div>
-                <div className="flex flex-col min-w-0">
+                <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm font-bold text-foreground leading-tight truncate">Administrador</span>
                   <span className="text-xs text-muted-foreground truncate">Panel de control</span>
                 </div>
+                {/* Dark mode toggle prominente en header */}
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-all shrink-0",
+                    theme === 'dark'
+                      ? "bg-slate-700 text-yellow-300 hover:bg-slate-600"
+                      : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                  )}
+                  title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                >
+                  {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                </button>
               </div>
             ) : (
-              <div className="flex w-full justify-center">
+              <div className="flex flex-col w-full items-center gap-2">
                 <div className="relative h-8 w-8">
-                  <Image 
-                    src="/logo.png" 
-                    alt="Pa' Que Vos Veais" 
-                    fill
-                    className="object-contain" 
-                    priority 
-                  />
+                  <Image src="/logo.png" alt="Pa' Que Vos Veais" fill className="object-contain" priority />
                 </div>
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={cn(
+                    "p-1.5 rounded-full transition-all",
+                    theme === 'dark' ? "bg-slate-700 text-yellow-300" : "bg-amber-100 text-amber-700"
+                  )}
+                >
+                  {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+                </button>
               </div>
             )}
           </div>
 
           {/* Navigation */}
-          <ScrollArea className="flex-1 py-1">
+          <ScrollArea className="flex-1 py-1 [&>[data-radix-scroll-area-viewport]]:scrollbar-thin">
             <nav className="flex flex-col gap-0.5 px-2">
               {navGroups.map((group, groupIndex) => (
                 <React.Fragment key={group.title}>
@@ -369,27 +379,6 @@ export function AdminView({ onBack }: AdminViewProps) {
 
           {/* Footer */}
           <div className="border-t border-border p-2 space-y-1">
-            {/* Dark Mode Toggle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "w-full justify-start gap-3 h-9 text-muted-foreground",
-                    sidebarCollapsed && "justify-center px-0"
-                  )}
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                >
-                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  {!sidebarCollapsed && <span className="text-sm">{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
-                </Button>
-              </TooltipTrigger>
-              {sidebarCollapsed && (
-                <TooltipContent side="right">{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</TooltipContent>
-              )}
-            </Tooltip>
-
             {/* Collapse Toggle */}
             <Button
               variant="ghost"
