@@ -6,7 +6,7 @@ import { Search, ShoppingBag, ChevronLeft, Plus, AlertCircle } from 'lucide-reac
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatPrice, type MenuItem, canPrepareItem, ETIQUETAS_CONFIG } from '@/lib/store'
+import { formatPrice, type MenuItem, canPrepareItem } from '@/lib/store'
 
 interface MenuViewProps {
   mesa: number
@@ -29,7 +29,7 @@ export function MenuView({
   onExit,
   canOrder = true,
 }: MenuViewProps) {
-  const { menuItems, ingredients, categories, getActivePromociones } = useApp()
+  const { menuItems, ingredients, categories, getActivePromociones, customEtiquetas } = useApp()
   const activePromociones = getActivePromociones()
   const activeCategories = [...categories]
     .filter(c => c.activa)
@@ -245,10 +245,10 @@ export function MenuView({
                       {item.etiquetas && item.etiquetas.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {item.etiquetas.map(tag => {
-                            const cfg = ETIQUETAS_CONFIG[tag]
-                            return cfg ? (
-                              <span key={tag} className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${cfg.color}`}>
-                                {cfg.emoji} {cfg.label}
+                            const etq = customEtiquetas.find(e => e.id === tag)
+                            return etq ? (
+                              <span key={tag} className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${etq.colorBg} ${etq.colorText}`}>
+                                {etq.emoji} {etq.label}
                               </span>
                             ) : null
                           })}

@@ -32,6 +32,7 @@ import {
   type MenuCategory,
   type TableConfig,
   type Promocion,
+  type CustomEtiqueta,
   DEFAULT_CONFIG,
   DEFAULT_DELIVERY_ZONES,
   DEFAULT_CATEGORIES,
@@ -76,6 +77,7 @@ interface AppState {
   categories: MenuCategory[]
   tables: TableConfig[]
   promociones: Promocion[]
+  customEtiquetas: CustomEtiqueta[]
   cart: OrderItem[]
   currentTable: number | null
   currentUser: User | null
@@ -185,6 +187,11 @@ interface AppContextType extends AppState {
   addPromocion: (promo: Omit<Promocion, 'id' | 'createdAt'>) => void
   updatePromocion: (promoId: string, updates: Partial<Promocion>) => void
   deletePromocion: (promoId: string) => void
+
+  // Custom etiquetas actions
+  addCustomEtiqueta: (etq: Omit<CustomEtiqueta, 'id'>) => void
+  updateCustomEtiqueta: (id: string, updates: Partial<CustomEtiqueta>) => void
+  deleteCustomEtiqueta: (id: string) => void
 
   // Payment utility actions
   resetSessionPaymentStatus: (sessionId: string) => void
@@ -333,6 +340,7 @@ function getDefaultState(): AppState {
     categories: DEFAULT_CATEGORIES,
     tables: DEFAULT_TABLES,
     promociones: [],
+    customEtiquetas: [],
     cart: [],
     currentTable: null,
     currentUser: null,
@@ -723,6 +731,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
   cargarPromociones()
+
+  const cargarCustomEtiquetas = async () => {
+    const { data, error } = await supabase.from('custom_etiquetas').select('*').order('orden')
+    if (error) { logger.error('Error cargando etiquetas:', error); return }
+    if (data) {
+      const etqs: CustomEtiqueta[] = data.map(row => ({
+        id: row.id as string,
+        emoji: row.emoji as string,
+        label: row.label as string,
+        colorBg: row.color_bg as string,
+        colorText: row.color_text as string,
+        activa: row.activa as boolean,
+        orden: row.orden as number,
+      }))
+      setState(prev => ({ ...prev, customEtiquetas: etqs }))
+    }
+  }
+  cargarCustomEtiquetas()
 
 }, [])
 
@@ -2867,6 +2893,37 @@ const addMenuItem = useCallback(
       .then(({ error }) => { if (error) logger.error('Error eliminando promocion:', error) })
   }, [])
 
+  // ============ CUSTOM ETIQUETAS ACTIONS ============
+  const addCustomEtiqueta = useCallback((etq: Omit<CustomEtiqueta, 'id'>) => {
+    const id = generateId()
+    const newEtq: CustomEtiqueta = { ...etq, id }
+    setState(prev => ({ ...prev, customEtiquetas: [...prev.customEtiquetas, newEtq].sort((a, b) => a.orden - b.orden) }))
+    supabase.from('custom_etiquetas').insert({
+      id, emoji: etq.emoji, label: etq.label,
+      color_bg: etq.colorBg, color_text: etq.colorText,
+      activa: etq.activa, orden: etq.orden,
+    }).then(({ error }) => { if (error) logger.error('Error creando etiqueta:', error) })
+  }, [])
+
+  const updateCustomEtiqueta = useCallback((id: string, updates: Partial<CustomEtiqueta>) => {
+    setState(prev => ({ ...prev, customEtiquetas: prev.customEtiquetas.map(e => e.id === id ? { ...e, ...updates } : e) }))
+    const payload: Record<string, unknown> = {}
+    if (updates.emoji !== undefined) payload.emoji = updates.emoji
+    if (updates.label !== undefined) payload.label = updates.label
+    if (updates.colorBg !== undefined) payload.color_bg = updates.colorBg
+    if (updates.colorText !== undefined) payload.color_text = updates.colorText
+    if (updates.activa !== undefined) payload.activa = updates.activa
+    if (updates.orden !== undefined) payload.orden = updates.orden
+    supabase.from('custom_etiquetas').update(payload).eq('id', id)
+      .then(({ error }) => { if (error) logger.error('Error actualizando etiqueta:', error) })
+  }, [])
+
+  const deleteCustomEtiqueta = useCallback((id: string) => {
+    setState(prev => ({ ...prev, customEtiquetas: prev.customEtiquetas.filter(e => e.id !== id) }))
+    supabase.from('custom_etiquetas').delete().eq('id', id)
+      .then(({ error }) => { if (error) logger.error('Error eliminando etiqueta:', error) })
+  }, [])
+
   // ============ UTILITY FUNCTIONS ============
   const getOrdersForKitchen = useCallback((kitchen: 'a' | 'b'): Order[] => {
     return state.orders.filter(order => {
@@ -2988,6 +3045,9 @@ const addMenuItem = useCallback(
   addPromocion,
   updatePromocion,
   deletePromocion,
+  addCustomEtiqueta,
+  updateCustomEtiqueta,
+  deleteCustomEtiqueta,
   }
   
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

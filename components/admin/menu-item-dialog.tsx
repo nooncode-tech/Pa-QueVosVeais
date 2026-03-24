@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient, type ModifierGroup, type EtiquetaItem, ETIQUETAS_CONFIG } from '@/lib/store'
+import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient, type ModifierGroup } from '@/lib/store'
 
 interface MenuItemDialogProps {
   item: MenuItem | null
@@ -17,7 +17,7 @@ interface MenuItemDialogProps {
 }
 
 export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
-  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients } = useApp()
+  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients, customEtiquetas } = useApp()
   const [nombre, setNombre] = useState(item?.nombre || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [descripcion, setDescripcion] = useState(item?.descripcion || '')
@@ -29,7 +29,7 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const [extras, setExtras] = useState<Extra[]>(item?.extras || [])
   const [receta, setReceta] = useState<RecipeIngredient[]>(item?.receta || [])
   const [gruposModificadores, setGruposModificadores] = useState<ModifierGroup[]>(item?.gruposModificadores || [])
-  const [etiquetas, setEtiquetas] = useState<EtiquetaItem[]>(item?.etiquetas || [])
+  const [etiquetas, setEtiquetas] = useState<string[]>(item?.etiquetas || [])
   const [horarioActivo, setHorarioActivo] = useState(!!item?.horarioDisponible)
   const [horarioInicio, setHorarioInicio] = useState(item?.horarioDisponible?.inicio || '08:00')
   const [horarioFin, setHorarioFin] = useState(item?.horarioDisponible?.fin || '22:00')
@@ -450,23 +450,26 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
               Visible para el cliente al ver el platillo
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {(Object.entries(ETIQUETAS_CONFIG) as [EtiquetaItem, typeof ETIQUETAS_CONFIG[EtiquetaItem]][]).map(([key, cfg]) => {
-                const active = etiquetas.includes(key)
+              {customEtiquetas.filter(e => e.activa).map(etq => {
+                const active = etiquetas.includes(etq.id)
                 return (
                   <button
-                    key={key}
+                    key={etq.id}
                     type="button"
                     onClick={() => setEtiquetas(prev =>
-                      active ? prev.filter(e => e !== key) : [...prev, key]
+                      active ? prev.filter(e => e !== etq.id) : [...prev, etq.id]
                     )}
                     className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
-                      active ? `${cfg.color} border-transparent font-medium` : 'border-border text-muted-foreground hover:border-primary/50'
+                      active ? `${etq.colorBg} ${etq.colorText} border-transparent font-medium` : 'border-border text-muted-foreground hover:border-primary/50'
                     }`}
                   >
-                    <span>{cfg.emoji}</span> {cfg.label}
+                    <span>{etq.emoji}</span> {etq.label}
                   </button>
                 )
               })}
+              {customEtiquetas.filter(e => e.activa).length === 0 && (
+                <p className="text-[10px] text-muted-foreground">Sin etiquetas. Agrégalas en Admin → Etiquetas.</p>
+              )}
             </div>
           </div>
 

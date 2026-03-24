@@ -96,6 +96,16 @@ export const ETIQUETAS_CONFIG: Record<EtiquetaItem, { label: string; emoji: stri
   'nueces':       { label: 'Nueces',      emoji: '🥜', color: 'bg-amber-100 text-amber-800' },
 }
 
+export interface CustomEtiqueta {
+  id: string
+  emoji: string
+  label: string
+  colorBg: string
+  colorText: string
+  activa: boolean
+  orden: number
+}
+
 export interface MenuItem {
   id: string
   nombre: string
@@ -108,7 +118,7 @@ export interface MenuItem {
   extras?: Extra[]
   receta?: RecipeIngredient[]
   gruposModificadores?: ModifierGroup[]
-  etiquetas?: EtiquetaItem[]
+  etiquetas?: string[]
   orden?: number
   horarioDisponible?: { inicio: string; fin: string }
 }
