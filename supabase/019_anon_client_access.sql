@@ -36,15 +36,6 @@ CREATE POLICY "anon inserta pedidos"
 -- ── create_order_atomic: permitir ejecución anónima ──────────────────────────
 GRANT EXECUTE ON FUNCTION public.create_order_atomic(jsonb, jsonb) TO anon;
 
--- ── session_feedback: lectura y escritura anónima ────────────────────────────
-DROP POLICY IF EXISTS "anon lee feedback" ON public.session_feedback;
-CREATE POLICY "anon lee feedback"
-  ON public.session_feedback FOR SELECT TO anon USING (true);
-
-DROP POLICY IF EXISTS "anon inserta feedback" ON public.session_feedback;
-CREATE POLICY "anon inserta feedback"
-  ON public.session_feedback FOR INSERT TO anon WITH CHECK (true);
-
 -- ── app_config: lectura pública (nombre del restaurante, config visual) ───────
 DROP POLICY IF EXISTS "anon lee config" ON public.app_config;
 CREATE POLICY "anon lee config"
