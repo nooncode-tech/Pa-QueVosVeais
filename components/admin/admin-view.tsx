@@ -294,19 +294,19 @@ export function AdminView({ onBack }: AdminViewProps) {
           </div>
 
           {/* Navigation */}
-          <ScrollArea className="flex-1 py-4">
-            <nav className="flex flex-col gap-1 px-2">
+          <ScrollArea className="flex-1 py-1">
+            <nav className="flex flex-col gap-0.5 px-2">
               {navGroups.map((group, groupIndex) => (
                 <React.Fragment key={group.title}>
                   {!sidebarCollapsed && (
-                    <div className="px-3 py-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <div className="px-3 pt-3 pb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         {group.title}
                       </span>
                     </div>
                   )}
                   {sidebarCollapsed && groupIndex > 0 && (
-                    <Separator className="my-2" />
+                    <Separator className="my-1" />
                   )}
                   {group.items.map((item) => {
                     const isActive = screen === item.id
@@ -315,7 +315,7 @@ export function AdminView({ onBack }: AdminViewProps) {
                         key={item.id}
                         variant={isActive ? "secondary" : "ghost"}
                         className={cn(
-                          "w-full justify-start gap-3 h-11 transition-colors",
+                          "w-full justify-start gap-2.5 h-9 transition-colors",
                           sidebarCollapsed && "justify-center px-0",
                           isActive && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
                         )}
