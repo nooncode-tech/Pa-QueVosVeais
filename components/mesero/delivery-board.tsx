@@ -17,10 +17,10 @@ export function DeliveryBoard() {
   const [repartidorInputs, setRepartidorInputs] = useState<Record<string, string>>({})
   const [showRepartidorFor, setShowRepartidorFor] = useState<string | null>(null)
   
-  // Get all orders that need delivery attention
-  const pendingOrders = orders.filter(o => 
-    o.status !== 'entregado' && 
-    (o.canal === 'mesa' || o.canal === 'para_llevar' || o.canal === 'delivery' || o.canal === 'mesero')
+  // Get all orders that need delivery attention (NOT mesa orders — those live in the Mesas tab)
+  const pendingOrders = orders.filter(o =>
+    o.status !== 'entregado' &&
+    (o.canal === 'para_llevar' || o.canal === 'delivery')
   ).sort((a, b) => {
     // Prioritize ready orders
     if (a.status === 'listo' && b.status !== 'listo') return -1

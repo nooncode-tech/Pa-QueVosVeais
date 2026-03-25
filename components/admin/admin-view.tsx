@@ -159,11 +159,16 @@ export function AdminView({ onBack }: AdminViewProps) {
               </h1>
             </div>
             <button
-              className="ml-auto p-1.5 rounded-full bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
+              className={cn(
+                "ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all",
+                theme === 'dark'
+                  ? "bg-slate-700 text-yellow-300 hover:bg-slate-600"
+                  : "bg-white/20 text-primary-foreground hover:bg-white/30"
+              )}
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
             >
-              {theme === 'dark' ? <Sun className="h-4 w-4 text-primary-foreground" /> : <Moon className="h-4 w-4 text-primary-foreground" />}
+              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
             </button>
           </div>
           
@@ -274,34 +279,12 @@ export function AdminView({ onBack }: AdminViewProps) {
                   <span className="text-sm font-bold text-foreground leading-tight truncate">Administrador</span>
                   <span className="text-xs text-muted-foreground truncate">Panel de control</span>
                 </div>
-                {/* Dark mode toggle prominente en header */}
-                <button
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-all shrink-0",
-                    theme === 'dark'
-                      ? "bg-slate-700 text-yellow-300 hover:bg-slate-600"
-                      : "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                  )}
-                  title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-                >
-                  {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                </button>
               </div>
             ) : (
-              <div className="flex flex-col w-full items-center gap-2">
+              <div className="flex w-full items-center justify-center">
                 <div className="relative h-8 w-8">
                   <Image src="/logo.png" alt="Pa' Que Vos Veais" fill className="object-contain" priority />
                 </div>
-                <button
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className={cn(
-                    "p-1.5 rounded-full transition-all",
-                    theme === 'dark' ? "bg-slate-700 text-yellow-300" : "bg-amber-100 text-amber-700"
-                  )}
-                >
-                  {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
-                </button>
               </div>
             )}
           </div>
@@ -382,6 +365,27 @@ export function AdminView({ onBack }: AdminViewProps) {
 
           {/* Footer */}
           <div className="border-t border-border p-2 space-y-1">
+            {/* Dark mode toggle */}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className={cn(
+                "w-full flex items-center rounded-lg px-3 h-10 transition-all",
+                sidebarCollapsed ? "justify-center px-0" : "gap-3",
+                theme === 'dark'
+                  ? "bg-slate-800 text-yellow-300 hover:bg-slate-700"
+                  : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+              )}
+            >
+              {theme === 'dark'
+                ? <Sun className="h-4 w-4 shrink-0" />
+                : <Moon className="h-4 w-4 shrink-0" />}
+              {!sidebarCollapsed && (
+                <span className="text-sm font-medium">
+                  {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+                </span>
+              )}
+            </button>
+
             {/* Collapse Toggle */}
             <Button
               variant="ghost"
