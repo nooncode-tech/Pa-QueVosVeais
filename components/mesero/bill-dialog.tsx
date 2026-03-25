@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatPrice, type PaymentMethod } from '@/lib/store'
 import { SplitBillDialog } from './split-bill-dialog'
-import { StripePaymentForm } from './stripe-payment-form'
 
 interface BillDialogProps {
   sessionId: string
@@ -566,26 +565,7 @@ const quickDiscounts = [
         )}
 
         {/* Confirmation Dialog */}
-        {showConfirm && selectedMethod === 'tarjeta' && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-4 rounded-xl">
-            <Card className="w-full max-w-sm">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-bold text-foreground">Pago con tarjeta</h3>
-                  <span className="text-sm font-bold text-foreground">{formatPrice(calculatedTotal)}</span>
-                </div>
-                <StripePaymentForm
-                  amount={calculatedTotal}
-                  description={`Mesa ${session.mesa}`}
-                  onSuccess={handleConfirmPayment}
-                  onCancel={() => setShowConfirm(false)}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {showConfirm && selectedMethod !== 'tarjeta' && (
+        {showConfirm && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-4 rounded-xl">
             <Card className="w-full max-w-sm">
               <CardContent className="p-4 text-center">

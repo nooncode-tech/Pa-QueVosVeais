@@ -2,7 +2,8 @@
 
 import React from "react"
 import { useState, useEffect } from 'react'
-import { LayoutGrid, Package, Bell, LogOut, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { LayoutGrid, Package, Bell, LogOut, ChevronLeft, ChevronRight, Clock, Sun, Moon } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useApp } from '@/lib/context'
 import { supabase } from '@/lib/supabase'
 import { TablesGrid } from './tables-grid'
@@ -29,6 +30,7 @@ interface MeseroViewProps {
 
 export function MeseroView({ onBack }: MeseroViewProps) {
   const { getPendingCalls, orders, currentUser } = useApp()
+  const { theme, setTheme } = useTheme()
   const [screen, setScreen] = useState<MeseroScreen>('tables')
   const [selectedTable, setSelectedTable] = useState<number | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -120,21 +122,35 @@ export function MeseroView({ onBack }: MeseroViewProps) {
                 Mesero
               </h1>
             </div>
-            {currentUser && (
+            <div className="ml-auto flex items-center gap-1.5">
               <button
-                onClick={handleClockToggle}
-                disabled={turnoLoading}
-                className={`ml-auto flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
-                  openTurnoId
-                    ? 'bg-green-500/20 text-green-100 border border-green-400/30'
-                    : 'bg-primary-foreground/10 text-primary-foreground'
-                }`}
-                title={openTurnoId ? 'Registrar salida' : 'Registrar entrada'}
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border",
+                  theme === 'dark'
+                    ? "bg-yellow-400/20 border-yellow-400/40 text-yellow-300 hover:bg-yellow-400/30"
+                    : "bg-white/25 border-white/40 text-white hover:bg-white/35"
+                )}
               >
-                <Clock className="h-3 w-3" />
-                {openTurnoId ? 'En turno' : 'Entrada'}
+                {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                <span>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
               </button>
-            )}
+              {currentUser && (
+                <button
+                  onClick={handleClockToggle}
+                  disabled={turnoLoading}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
+                    openTurnoId
+                      ? 'bg-green-500/20 text-green-100 border border-green-400/30'
+                      : 'bg-primary-foreground/10 text-primary-foreground'
+                  }`}
+                  title={openTurnoId ? 'Registrar salida' : 'Registrar entrada'}
+                >
+                  <Clock className="h-3 w-3" />
+                  {openTurnoId ? 'En turno' : 'Entrada'}
+                </button>
+              )}
+            </div>
           </div>
           
           {/* Navigation Tabs - Scrollable on mobile */}
@@ -204,34 +220,45 @@ export function MeseroView({ onBack }: MeseroViewProps) {
           )}
         >
           {/* Logo / Brand */}
-          <div className="flex h-16 items-center border-b border-border px-3">
+          <div className="flex h-16 items-center border-b border-border px-3 gap-2">
             {!sidebarCollapsed ? (
-              <div className="flex items-center gap-3 flex-1">
+              <>
                 <div className="relative h-10 w-10 shrink-0">
-                  <Image 
-                    src="/logo.png" 
-                    alt="Pa' Que Vos Veais" 
-                    fill
-                    className="object-contain" 
-                    priority 
-                  />
+                  <Image src="/logo.png" alt="Pa' Que Vos Veais" fill className="object-contain" priority />
                 </div>
-                <div className="flex flex-col min-w-0">
+                <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm font-bold text-foreground leading-tight truncate">Mesero</span>
                   <span className="text-xs text-muted-foreground truncate">Atencion al cliente</span>
                 </div>
-              </div>
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={cn(
+                    "shrink-0 h-8 w-8 flex items-center justify-center rounded-full transition-all",
+                    theme === 'dark'
+                      ? "bg-yellow-400/20 text-yellow-300 hover:bg-yellow-400/30"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
+                  )}
+                  title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+                >
+                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </button>
+              </>
             ) : (
-              <div className="flex w-full justify-center">
+              <div className="flex w-full flex-col items-center gap-1">
                 <div className="relative h-8 w-8">
-                  <Image 
-                    src="/logo.png" 
-                    alt="Pa' Que Vos Veais" 
-                    fill
-                    className="object-contain" 
-                    priority 
-                  />
+                  <Image src="/logo.png" alt="Pa' Que Vos Veais" fill className="object-contain" priority />
                 </div>
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={cn(
+                    "h-6 w-6 flex items-center justify-center rounded-full transition-all",
+                    theme === 'dark'
+                      ? "bg-yellow-400/20 text-yellow-300 hover:bg-yellow-400/30"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
+                  )}
+                >
+                  {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                </button>
               </div>
             )}
           </div>
