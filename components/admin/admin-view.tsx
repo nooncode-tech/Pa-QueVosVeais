@@ -160,15 +160,15 @@ export function AdminView({ onBack }: AdminViewProps) {
             </div>
             <button
               className={cn(
-                "ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all",
+                "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border",
                 theme === 'dark'
-                  ? "bg-slate-700 text-yellow-300 hover:bg-slate-600"
-                  : "bg-white/20 text-primary-foreground hover:bg-white/30"
+                  ? "bg-yellow-400/20 border-yellow-400/40 text-yellow-300 hover:bg-yellow-400/30"
+                  : "bg-white/25 border-white/40 text-white hover:bg-white/35"
               )}
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             >
               {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              <span className="hidden sm:inline">{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
+              <span>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
             </button>
           </div>
           
@@ -269,9 +269,9 @@ export function AdminView({ onBack }: AdminViewProps) {
           )}
         >
           {/* Logo / Brand */}
-          <div className="flex h-16 items-center border-b border-border px-3">
+          <div className="flex h-16 items-center border-b border-border px-3 gap-2">
             {!sidebarCollapsed ? (
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+              <>
                 <div className="relative h-9 w-9 shrink-0">
                   <Image src="/logo.png" alt="Pa' Que Vos Veais" fill className="object-contain" priority />
                 </div>
@@ -279,18 +279,42 @@ export function AdminView({ onBack }: AdminViewProps) {
                   <span className="text-sm font-bold text-foreground leading-tight truncate">Administrador</span>
                   <span className="text-xs text-muted-foreground truncate">Panel de control</span>
                 </div>
-              </div>
+                {/* Dark mode toggle — header */}
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={cn(
+                    "shrink-0 h-8 w-8 flex items-center justify-center rounded-full transition-all",
+                    theme === 'dark'
+                      ? "bg-yellow-400/20 text-yellow-300 hover:bg-yellow-400/30"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
+                  )}
+                  title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                >
+                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </button>
+              </>
             ) : (
-              <div className="flex w-full items-center justify-center">
+              <div className="flex w-full flex-col items-center gap-1">
                 <div className="relative h-8 w-8">
                   <Image src="/logo.png" alt="Pa' Que Vos Veais" fill className="object-contain" priority />
                 </div>
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={cn(
+                    "h-6 w-6 flex items-center justify-center rounded-full transition-all",
+                    theme === 'dark'
+                      ? "bg-yellow-400/20 text-yellow-300 hover:bg-yellow-400/30"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
+                  )}
+                >
+                  {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                </button>
               </div>
             )}
           </div>
 
           {/* Navigation */}
-          <ScrollArea className="flex-1 py-1 [&>[data-radix-scroll-area-viewport]]:scrollbar-thin">
+          <ScrollArea className="flex-1 min-h-0 py-1 [&>[data-radix-scroll-area-viewport]]:scrollbar-thin">
             <nav className="flex flex-col gap-0.5 px-2">
               {navGroups.map((group, groupIndex) => (
                 <React.Fragment key={group.title}>
@@ -365,27 +389,6 @@ export function AdminView({ onBack }: AdminViewProps) {
 
           {/* Footer */}
           <div className="border-t border-border p-2 space-y-1">
-            {/* Dark mode toggle */}
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className={cn(
-                "w-full flex items-center rounded-lg px-3 h-10 transition-all",
-                sidebarCollapsed ? "justify-center px-0" : "gap-3",
-                theme === 'dark'
-                  ? "bg-slate-800 text-yellow-300 hover:bg-slate-700"
-                  : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-              )}
-            >
-              {theme === 'dark'
-                ? <Sun className="h-4 w-4 shrink-0" />
-                : <Moon className="h-4 w-4 shrink-0" />}
-              {!sidebarCollapsed && (
-                <span className="text-sm font-medium">
-                  {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-                </span>
-              )}
-            </button>
-
             {/* Collapse Toggle */}
             <Button
               variant="ghost"
