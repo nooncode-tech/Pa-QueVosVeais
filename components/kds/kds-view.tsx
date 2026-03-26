@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle, Volume2, VolumeX, ChevronsLeft, ChevronsRight, Printer, EyeOff } from 'lucide-react'
+import { Clock, Play, Check, LogOut, ListOrdered, ChefHat, CircleCheck, AlertTriangle, Volume2, VolumeX, ChevronsLeft, ChevronsRight, Printer, EyeOff, Sun, Moon } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -54,6 +55,7 @@ type KDSTab = 'queue' | 'preparing' | 'ready'
 
 export function KDSView({ kitchen, onBack }: KDSViewProps) {
   const { orders, updateKitchenStatus, updateMenuItem } = useApp()
+  const { theme, setTheme } = useTheme()
   const [currentTime, setCurrentTime] = useState(new Date())
   const [activeTab, setActiveTab] = useState<KDSTab>('queue')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -230,6 +232,16 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
           
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-background/10 hover:bg-background/20 transition-colors"
+              title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            >
+              {theme === 'dark'
+                ? <Sun className="h-4 w-4 text-background" />
+                : <Moon className="h-4 w-4 text-background" />
+              }
+            </button>
+            <button
               onClick={() => setSoundMuted(m => !m)}
               className="w-8 h-8 flex items-center justify-center rounded-full bg-background/10 hover:bg-background/20 transition-colors"
               title={soundMuted ? 'Activar sonido' : 'Silenciar'}
@@ -345,6 +357,13 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
                   <span className="text-base font-bold leading-tight truncate">{kitchenName}</span>
                   <span className="text-sm text-background/60 truncate">{kitchenDesc}</span>
                 </div>
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-background/10 hover:bg-background/20 transition-colors"
+                  title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+                >
+                  {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                </button>
                 <button
                   onClick={() => setSidebarCollapsed(true)}
                   className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-background/10 hover:bg-background/20 transition-colors"

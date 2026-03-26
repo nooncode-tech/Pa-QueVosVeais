@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Receipt, CreditCard, Banknote, Percent, Check, Printer, Smartphone, Users } from 'lucide-react'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
@@ -24,9 +24,15 @@ export function BillDialog({ sessionId, onClose }: BillDialogProps) {
   setTipAmount,
   requestPayment,
   confirmPayment,
+  updateBillTotals,
   config,
   logAction,
 } = useApp()
+
+  // Recalculate totals from actual orders when dialog opens
+  useEffect(() => {
+    updateBillTotals(sessionId)
+  }, [sessionId, updateBillTotals])
 
   
   const session = getSessionBill(sessionId)
