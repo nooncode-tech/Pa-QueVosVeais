@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient, type ModifierGroup } from '@/lib/store'
+import { type MenuItem, type Kitchen, type Extra, type RecipeIngredient } from '@/lib/store'
 
 interface MenuItemDialogProps {
   item: MenuItem | null
@@ -17,7 +17,7 @@ interface MenuItemDialogProps {
 }
 
 export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
-  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients, customEtiquetas } = useApp()
+  const { updateMenuItem, addMenuItem, deleteMenuItem, categories, ingredients, customEtiquetas, addCustomEtiqueta, deleteCustomEtiqueta } = useApp()
   const [nombre, setNombre] = useState(item?.nombre || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [descripcion, setDescripcion] = useState(item?.descripcion || '')
@@ -28,12 +28,15 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [extras, setExtras] = useState<Extra[]>(item?.extras || [])
   const [receta, setReceta] = useState<RecipeIngredient[]>(item?.receta || [])
-  const [gruposModificadores, setGruposModificadores] = useState<ModifierGroup[]>(item?.gruposModificadores || [])
   const [etiquetas, setEtiquetas] = useState<string[]>(item?.etiquetas || [])
   const [horarioActivo, setHorarioActivo] = useState(!!item?.horarioDisponible)
   const [horarioInicio, setHorarioInicio] = useState(item?.horarioDisponible?.inicio || '08:00')
   const [horarioFin, setHorarioFin] = useState(item?.horarioDisponible?.fin || '22:00')
-  
+  const [etqDeleteMode, setEtqDeleteMode] = useState(false)
+  const [newEtqEmoji, setNewEtqEmoji] = useState('')
+  const [newEtqLabel, setNewEtqLabel] = useState('')
+  const [showAddEtq, setShowAddEtq] = useState(false)
+
   // For new extra
   const [newExtraName, setNewExtraName] = useState('')
   const [newExtraPrice, setNewExtraPrice] = useState('')
@@ -93,7 +96,6 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
       imagen: imagen || undefined,
       extras: extras.length > 0 ? extras : undefined,
       receta: receta.length > 0 ? receta : undefined,
-      gruposModificadores: gruposModificadores.length > 0 ? gruposModificadores : undefined,
       etiquetas: etiquetas.length > 0 ? etiquetas : undefined,
       disponible: item?.disponible ?? true,
       horarioDisponible: horarioActivo ? { inicio: horarioInicio, fin: horarioFin } : undefined,
@@ -445,111 +447,95 @@ export function MenuItemDialog({ item, onClose }: MenuItemDialogProps) {
           
           {/* Etiquetas / Tags */}
           <div className="border-t border-border pt-3">
-            <Label className="text-xs">Etiquetas dietéticas / alérgenos</Label>
-            <p className="text-[10px] text-muted-foreground mb-2">
-              Visible para el cliente al ver el platillo
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <Label className="text-xs">Etiquetas dietéticas / alérgenos</Label>
+                <p className="text-[10px] text-muted-foreground">Visible para el cliente al ver el platillo</p>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => { setShowAddEtq(v => !v); setEtqDeleteMode(false) }}
+                  className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${showAddEtq ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground hover:bg-primary/10'}`}
+                >
+                  + Agregar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEtqDeleteMode(v => !v); setShowAddEtq(false) }}
+                  className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${etqDeleteMode ? 'bg-destructive text-destructive-foreground' : 'bg-secondary text-foreground hover:bg-destructive/10'}`}
+                >
+                  − Eliminar
+                </button>
+              </div>
+            </div>
+
+            {/* Add new etiqueta form */}
+            {showAddEtq && (
+              <div className="flex items-center gap-1.5 mb-2 p-2 bg-secondary/40 rounded-lg">
+                <Input
+                  value={newEtqEmoji}
+                  onChange={e => setNewEtqEmoji(e.target.value)}
+                  placeholder="🌿"
+                  className="h-7 text-xs w-14 text-center"
+                  maxLength={4}
+                />
+                <Input
+                  value={newEtqLabel}
+                  onChange={e => setNewEtqLabel(e.target.value)}
+                  placeholder="Nombre (ej: Sin gluten)"
+                  className="h-7 text-xs flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newEtqLabel.trim()) return
+                    addCustomEtiqueta({ emoji: newEtqEmoji || '🏷️', label: newEtqLabel.trim(), colorBg: 'bg-primary/10', colorText: 'text-primary', orden: customEtiquetas.length, activa: true })
+                    setNewEtqEmoji('')
+                    setNewEtqLabel('')
+                    setShowAddEtq(false)
+                  }}
+                  className="h-7 px-2 text-[10px] bg-primary text-primary-foreground rounded font-medium"
+                >
+                  Guardar
+                </button>
+              </div>
+            )}
+
+            {/* Etiquetas list */}
             <div className="flex flex-wrap gap-1.5">
               {customEtiquetas.filter(e => e.activa).map(etq => {
                 const active = etiquetas.includes(etq.id)
                 return (
-                  <button
-                    key={etq.id}
-                    type="button"
-                    onClick={() => setEtiquetas(prev =>
-                      active ? prev.filter(e => e !== etq.id) : [...prev, etq.id]
-                    )}
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
-                      active ? `${etq.colorBg} ${etq.colorText} border-transparent font-medium` : 'border-border text-muted-foreground hover:border-primary/50'
-                    }`}
-                  >
-                    <span>{etq.emoji}</span> {etq.label}
-                  </button>
+                  <div key={etq.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (etqDeleteMode) {
+                          deleteCustomEtiqueta(etq.id)
+                          setEtiquetas(prev => prev.filter(e => e !== etq.id))
+                        } else {
+                          setEtiquetas(prev => active ? prev.filter(e => e !== etq.id) : [...prev, etq.id])
+                        }
+                      }}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+                        etqDeleteMode
+                          ? 'border-destructive text-destructive hover:bg-destructive/10'
+                          : active
+                            ? `${etq.colorBg} ${etq.colorText} border-transparent font-medium`
+                            : 'border-border text-muted-foreground hover:border-primary/50'
+                      }`}
+                    >
+                      {etqDeleteMode && <X className="h-2.5 w-2.5" />}
+                      <span>{etq.emoji}</span> {etq.label}
+                    </button>
+                  </div>
                 )
               })}
-              {customEtiquetas.filter(e => e.activa).length === 0 && (
-                <p className="text-[10px] text-muted-foreground">Sin etiquetas. Agrégalas en Admin → Etiquetas.</p>
+              {customEtiquetas.filter(e => e.activa).length === 0 && !showAddEtq && (
+                <p className="text-[10px] text-muted-foreground">Sin etiquetas. Pulsa "+ Agregar" para crear la primera.</p>
               )}
             </div>
-          </div>
-
-          {/* Modifier Groups */}
-          <div className="border-t border-border pt-3">
-            <Label className="text-xs">Grupos de modificadores</Label>
-            <p className="text-[10px] text-muted-foreground mb-2">
-              Preguntas obligatorias u opcionales al ordenar (ej: "Término", "¿Con salsa?")
-            </p>
-
-            {gruposModificadores.map((grupo, gi) => (
-              <div key={grupo.id} className="bg-secondary/40 rounded-lg p-2 mb-2 space-y-1.5">
-                {/* Group header */}
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    value={grupo.nombre}
-                    onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, nombre: e.target.value } : g))}
-                    placeholder="Ej: Término de cocción"
-                    className="h-6 text-xs flex-1"
-                  />
-                  <select
-                    value={grupo.tipo}
-                    onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, tipo: e.target.value as ModifierGroup['tipo'] } : g))}
-                    className="h-6 text-[10px] border border-border rounded bg-background px-1"
-                  >
-                    <option value="unico">1 opción</option>
-                    <option value="multiple">Varias</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, requerido: !g.requerido } : g))}
-                    className={`h-6 px-1.5 text-[10px] rounded border transition-colors ${grupo.requerido ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground'}`}
-                  >
-                    {grupo.requerido ? 'Req.' : 'Opc.'}
-                  </button>
-                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => setGruposModificadores(prev => prev.filter((_, i) => i !== gi))}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                {/* Options */}
-                <div className="space-y-1 pl-1">
-                  {grupo.opciones.map((op, oi) => (
-                    <div key={op.id} className="flex items-center gap-1">
-                      <Input
-                        value={op.nombre}
-                        onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: g.opciones.map((o, j) => j === oi ? { ...o, nombre: e.target.value } : o) } : g))}
-                        placeholder="Opción"
-                        className="h-5 text-[10px] flex-1"
-                      />
-                      <Input
-                        type="number" step="0.01" min="0"
-                        value={op.precioExtra}
-                        onChange={e => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: g.opciones.map((o, j) => j === oi ? { ...o, precioExtra: parseFloat(e.target.value) || 0 } : o) } : g))}
-                        placeholder="+$"
-                        className="h-5 text-[10px] w-14"
-                      />
-                      <Button type="button" variant="ghost" size="icon" className="h-4 w-4 text-destructive" onClick={() => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: g.opciones.filter((_, j) => j !== oi) } : g))}>
-                        <Trash2 className="h-2.5 w-2.5" />
-                      </Button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setGruposModificadores(prev => prev.map((g, i) => i === gi ? { ...g, opciones: [...g.opciones, { id: `opt-${Date.now()}`, nombre: '', precioExtra: 0 }] } : g))}
-                    className="text-[10px] text-primary flex items-center gap-0.5 mt-0.5"
-                  >
-                    <Plus className="h-3 w-3" /> Agregar opción
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => setGruposModificadores(prev => [...prev, { id: `grp-${Date.now()}`, nombre: '', requerido: true, tipo: 'unico', opciones: [] }])}
-              className="text-xs text-primary flex items-center gap-1"
-            >
-              <Plus className="h-3 w-3" /> Agregar grupo de modificadores
-            </button>
           </div>
 
           {/* Recipe / Ingredients */}
