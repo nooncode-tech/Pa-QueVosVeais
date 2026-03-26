@@ -54,8 +54,9 @@ interface KDSViewProps {
 type KDSTab = 'queue' | 'preparing' | 'ready'
 
 export function KDSView({ kitchen, onBack }: KDSViewProps) {
-  const { orders, updateKitchenStatus, updateMenuItem } = useApp()
+  const { orders, tableSessions, updateKitchenStatus, updateMenuItem } = useApp()
   const { theme, setTheme } = useTheme()
+  const activeMesas = new Set(tableSessions.filter(s => s.activa).map(s => s.mesa))
   const [currentTime, setCurrentTime] = useState(new Date())
   const [activeTab, setActiveTab] = useState<KDSTab>('queue')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -76,6 +77,8 @@ export function KDSView({ kitchen, onBack }: KDSViewProps) {
   
   const relevantOrders = orders.filter(order => {
     if (order.status === 'entregado' || order.status === 'cancelado') return false
+    // For mesa orders, only show if the session is still active
+    if (order.canal === 'mesa' && order.mesa && !activeMesas.has(order.mesa)) return false
     if (order.claimedByKitchen && order.claimedByKitchen !== kitchenKey) return false
     const hasItems = order.items.some(
       item => item.menuItem.cocina === kitchenKey || item.menuItem.cocina === 'ambas'

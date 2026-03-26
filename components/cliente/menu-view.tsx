@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Search, ShoppingBag, ChevronLeft, Plus, AlertCircle } from 'lucide-react'
+import { Search, ShoppingBag, ChevronLeft, Plus, AlertCircle, Sun, Moon } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useApp } from '@/lib/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +31,7 @@ export function MenuView({
   canOrder = true,
 }: MenuViewProps) {
   const { menuItems, ingredients, categories, getActivePromociones, customEtiquetas } = useApp()
+  const { theme, setTheme } = useTheme()
   const activePromociones = getActivePromociones()
   const activeCategories = [...categories]
     .filter(c => c.activa)
@@ -74,34 +76,42 @@ export function MenuView({
   return (
     <div className="min-h-screen bg-white flex flex-col max-w-md mx-auto">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white">
+      <header className="sticky top-0 z-50 bg-background border-b border-border/50">
         <div className="px-4 pt-3 pb-2">
-          {/* Top bar with back, logo, and cart */}
+          {/* Top bar with back, logo, dark mode and cart */}
           <div className="flex items-center justify-between mb-3">
-            <button 
+            <button
               onClick={onExit}
               className="w-8 h-8 flex items-center justify-center"
             >
               <ChevronLeft className="h-5 w-5 text-foreground" />
             </button>
-            
+
             <div className="flex items-center gap-1.5">
               <Image src="/logo.png" alt="Pa' Que Vos Veais" width={24} height={24} className="w-6 h-6 object-contain" priority />
               <span className="text-xs font-medium text-muted-foreground">Mesa {mesa}</span>
             </div>
-            
-            <button 
-              onClick={onGoToCart}
-              className="w-8 h-8 flex items-center justify-center relative"
-              disabled={!canOrder}
-            >
-              <ShoppingBag className={`h-5 w-5 ${canOrder ? 'text-foreground' : 'text-muted-foreground'}`} />
-              {cartItemCount > 0 && canOrder && (
-                <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {cartItemCount}
-                </span>
-              )}
-            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={onGoToCart}
+                className="w-8 h-8 flex items-center justify-center relative"
+                disabled={!canOrder}
+              >
+                <ShoppingBag className={`h-5 w-5 ${canOrder ? 'text-foreground' : 'text-muted-foreground'}`} />
+                {cartItemCount > 0 && canOrder && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {cartItemCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Payment requested banner */}
